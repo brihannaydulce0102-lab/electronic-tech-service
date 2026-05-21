@@ -5,7 +5,7 @@ import os
 
 st.set_page_config(page_title="Electronic Tech Service", layout="wide", page_icon="🔧")
 
-# Estilo
+# ==================== ESTILO ====================
 st.markdown("""
 <style>
     .stApp { background-color: #0a0a23; color: #ffffff; }
@@ -14,7 +14,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Logo
+# ==================== LOGO ====================
 if os.path.exists("logo.png"):
     st.image("logo.png", width=320)
 else:
@@ -107,6 +107,78 @@ elif menu == "📋 Ver Órdenes":
     else:
         st.info("Aún no hay órdenes registradas")
 
+# ==================== BUSCAR ====================
+elif menu == "🔍 Buscar":
+    st.subheader("🔍 Buscar Orden")
+    busqueda = st.text_input("Cliente, teléfono o ID")
+    if busqueda and not df.empty:
+        resultados = df[df.astype(str).apply(lambda x: x.str.contains(busqueda, case=False)).any(axis=1)]
+        st.dataframe(resultados, use_container_width=True, hide_index=True)
+    else:
+        st.info("Escribe algo para buscar")
+
+# ==================== COTIZACIONES ====================
+elif menu == "📄 Cotizaciones":
+    st.subheader("📄 Nueva Cotización")
+    col1, col2 = st.columns(2)
+    with col1:
+        cliente_cot = st.text_input("Nombre del Cliente")
+        telefono_cot = st.text_input("Teléfono")
+        equipo_cot = st.text_input("Equipo")
+    with col2:
+        descripcion_cot = st.text_area("Descripción del servicio / falla")
+        precio_cot = st.number_input("Precio cotizado ($)", min_value=0, step=1000)
+    
+    if st.button("💾 Generar Cotización", type="primary"):
+        if cliente_cot and precio_cot > 0:
+            st.markdown(f"""
+            <div style="background-color: white; color: black; padding: 25px; border-radius: 10px; max-width: 600px; margin: auto;">
+                <h2 style="text-align: center;">Electronic Tech Service</h2>
+                <p style="text-align: center;">Cotización #{len(df)+1} — {datetime.now().strftime("%d/%m/%Y")}</p>
+                <hr>
+                <p><strong>Cliente:</strong> {cliente_cot}</p>
+                <p><strong>Teléfono:</strong> {telefono_cot}</p>
+                <p><strong>Equipo:</strong> {equipo_cot}</p>
+                <p><strong>Descripción:</strong> {descripcion_cot}</p>
+                <h3 style="text-align: right;">Total: ${int(precio_cot):,}</h3>
+                <hr>
+                <p style="text-align: center;">Montería - Córdoba • Barrio El Mundo López</p>
+                <p style="text-align: center;">WhatsApp: <strong>301 487 4740</strong></p>
+                <p style="text-align: center; margin-top: 30px;">¡Gracias por elegirnos!</p>
+            </div>
+            """, unsafe_allow_html=True)
+            st.info("👆 Usa ⋯ → Imprimir")
+        else:
+            st.error("Completa los campos")
+
+# ==================== IMPRIMIR RECIBO ====================
+elif menu == "🖨️ Imprimir Recibo":
+    st.subheader("🖨️ Imprimir Recibo")
+    id_recibo = st.number_input("ID de la Orden", min_value=1, step=1)
+    if st.button("Generar Recibo"):
+        if id_recibo in df["ID"].values:
+            orden = df[df["ID"] == id_recibo].iloc[0]
+            st.markdown(f"""
+            <div style="background-color: white; color: black; padding: 25px; border-radius: 10px; max-width: 600px; margin: auto;">
+                <h2 style="text-align: center;">Electronic Tech Service</h2>
+                <p style="text-align: center;">Recibo Oficial • Orden #{orden['ID']}</p>
+                <hr>
+                <p><strong>Fecha:</strong> {orden['Fecha']}</p>
+                <p><strong>Cliente:</strong> {orden['Cliente']}</p>
+                <p><strong>Teléfono:</strong> {orden['Telefono']}</p>
+                <p><strong>Equipo:</strong> {orden['Equipo']}</p>
+                <p><strong>Problema:</strong> {orden['Problema']}</p>
+                <p><strong>Estado:</strong> {orden['Estado']}</p>
+                <h3 style="text-align: right;">Total: ${int(orden['Precio_Estimado']):,}</h3>
+                <hr>
+                <p style="text-align: center;">Montería - Córdoba • Barrio El Mundo López</p>
+                <p style="text-align: center;">WhatsApp: <strong>301 487 4740</strong></p>
+                <p style="text-align: center;">¡Gracias por su preferencia!</p>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.error("Orden no encontrada")
+
 # ==================== INVENTARIO ====================
 elif menu == "📦 Inventario":
     st.subheader("📦 Gestión de Inventario")
@@ -128,33 +200,30 @@ elif menu == "📦 Inventario":
             cantidad = st.number_input("Cantidad inicial", min_value=1, value=1)
         with col2:
             precio_unit = st.number_input("Precio Unitario ($)", min_value=0)
-        
-        if st.button("➕ Agregar al Inventario", type="primary"):
+        if st.button("➕ Agregar", type="primary"):
             if producto:
                 nuevo = {"Producto": producto, "Cantidad": cantidad, "Precio_Unitario": precio_unit,
                          "Fecha_Actualizacion": datetime.now().strftime("%Y-%m-%d %H:%M")}
                 inv = pd.concat([inv, pd.DataFrame([nuevo])], ignore_index=True)
                 inv.to_excel(INV_FILE, index=False)
-                st.success(f"✅ {producto} agregado")
+                st.success(f"{producto} agregado")
                 st.rerun()
 
     with tab3:
         st.write("**Restar stock**")
         if not inv.empty:
-            producto_restar = st.selectbox("Seleccionar Repuesto", inv["Producto"])
+            producto_restar = st.selectbox("Repuesto", inv["Producto"])
             cantidad_restar = st.number_input("Cantidad a restar", min_value=1, value=1)
-            if st.button("➖ Restar Stock"):
+            if st.button("➖ Restar"):
                 idx = inv[inv["Producto"] == producto_restar].index[0]
                 if inv.loc[idx, "Cantidad"] >= cantidad_restar:
                     inv.loc[idx, "Cantidad"] -= cantidad_restar
                     inv.loc[idx, "Fecha_Actualizacion"] = datetime.now().strftime("%Y-%m-%d %H:%M")
                     inv.to_excel(INV_FILE, index=False)
-                    st.success(f"✅ Restadas {cantidad_restar} de {producto_restar}")
+                    st.success(f"Restadas {cantidad_restar} de {producto_restar}")
                     st.rerun()
                 else:
-                    st.error("No hay suficiente stock")
-        else:
-            st.info("Agrega repuestos primero")
+                    st.error("Stock insuficiente")
 
 # ==================== CONTABILIDAD ====================
 elif menu == "📊 Contabilidad":
@@ -164,51 +233,28 @@ elif menu == "📊 Contabilidad":
     por_cobrar = total - cobrado
 
     col1, col2, col3 = st.columns(3)
-    col1.metric("💰 Total Ganado", f"${total:,.0f}")
-    col2.metric("✅ Cobrado", f"${cobrado:,.0f}")
-    col3.metric("⏳ Por Cobrar", f"${por_cobrar:,.0f}")
-
-    st.subheader("Marcar Pago")
-    id_pago = st.number_input("ID de la Orden", min_value=1, step=1)
-    nuevo_estado = st.selectbox("Estado de Pago", ["Pagado", "Pendiente"])
-    if st.button("Actualizar Pago"):
-        if id_pago in df["ID"].values:
-            df.loc[df["ID"] == id_pago, "Pagado"] = nuevo_estado
-            df.to_excel(DATA_FILE, index=False)
-            st.success(f"Orden #{id_pago} actualizada")
-            st.rerun()
+    col1.metric("Total Ganado", f"${total:,.0f}")
+    col2.metric("Cobrado", f"${cobrado:,.0f}")
+    col3.metric("Por Cobrar", f"${por_cobrar:,.0f}")
 
 # ==================== GASTOS ====================
 elif menu == "💸 Gastos":
-    st.subheader("💸 Gastos del Negocio")
-    tab1, tab2 = st.tabs(["Registrar Gasto", "Ver Resumen"])
-
+    st.subheader("💸 Gastos")
+    tab1, tab2 = st.tabs(["Registrar", "Resumen"])
     with tab1:
-        col1, col2 = st.columns(2)
-        with col1:
-            desc = st.text_input("Descripción del gasto")
-            monto = st.number_input("Monto ($)", min_value=0, step=1000)
-        with col2:
-            cat = st.selectbox("Categoría", ["Repuestos", "Herramientas", "Alquiler", "Servicios", "Otros"])
-        
-        if st.button("💾 Registrar Gasto"):
+        desc = st.text_input("Descripción")
+        monto = st.number_input("Monto", min_value=0, step=1000)
+        cat = st.selectbox("Categoría", ["Repuestos", "Herramientas", "Alquiler", "Servicios", "Otros"])
+        if st.button("Registrar Gasto"):
             if desc and monto > 0:
-                nuevo = {
-                    "Fecha": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                    "Descripcion": desc,
-                    "Monto": monto,
-                    "Categoria": cat
-                }
+                nuevo = {"Fecha": datetime.now().strftime("%Y-%m-%d %H:%M"), "Descripcion": desc, "Monto": monto, "Categoria": cat}
                 gastos = pd.concat([gastos, pd.DataFrame([nuevo])], ignore_index=True)
                 gastos.to_excel(GASTOS_FILE, index=False)
-                st.success("✅ Gasto registrado")
+                st.success("Gasto registrado")
                 st.rerun()
-
     with tab2:
         if not gastos.empty:
             st.dataframe(gastos, use_container_width=True, hide_index=True)
             st.metric("Total Gastos", f"${gastos['Monto'].sum():,.0f}")
-        else:
-            st.info("Aún no hay gastos registrados")
 
 st.sidebar.metric("Total Órdenes", len(df))
