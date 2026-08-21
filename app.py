@@ -1,32 +1,28 @@
+
 import streamlit as st
 import pandas as pd
 from datetime import datetime
 import os
 
-st.set_page_config(page_title="Electronic Tech Service", layout="wide", page_icon="🔧")
+st.set_page_config(
+    page_title="Electronic Tech Service",
+    page_icon="logo.png",          # ← Muy importante
+    layout="wide"
+)
 
-# Estilo
-st.markdown("""
-<style>
-    .stApp { background-color: #0a0a23; color: #ffffff; }
-    .stButton>button { background-color: #00f5ff; color: #000000; font-weight: bold; padding: 12px; border-radius: 10px; }
-    h1, h2, h3 { color: #00f5ff; }
-</style>
-""", unsafe_allow_html=True)
-
-# Logo + Nombre
+# Logo grande en la página
 col1, col2 = st.columns([1, 4])
 with col1:
     if os.path.exists("logo.png"):
-        st.image("logo.png", width=180)
+        st.image("logo.png", width=200)
     else:
         st.write("🔧")
+
 with col2:
     st.title("Electronic Tech Service")
 
 st.markdown("**Servicio Técnico Electrónico**")
 st.markdown("---")
-
 # ==================== ARCHIVOS ====================
 DATA_FILE = "reparaciones.xlsx"
 ARCHIVE_FOLDER = "cortes_mensuales"
