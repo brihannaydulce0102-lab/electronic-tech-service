@@ -58,6 +58,7 @@ if st.sidebar.button("Cerrar Sesión"):
 
 # ==================== DATOS ====================
 DATA_FILE = "reparaciones.xlsx"
+USERS_FILE = "usuarios.xlsx"
 
 if os.path.exists(DATA_FILE):
     df = pd.read_excel(DATA_FILE)
@@ -66,6 +67,11 @@ else:
 
 if "Pagado" not in df.columns:
     df["Pagado"] = "Pendiente"
+
+if not os.path.exists(USERS_FILE):
+    pd.DataFrame([{"usuario": "admin", "password": "123456", "rol": "admin"}]).to_excel(USERS_FILE, index=False)
+
+usuarios = pd.read_excel(USERS_FILE)
 
 # ==================== MENÚ ====================
 menu_opciones = ["🏠 Inicio", "📋 Nueva Reparación", "📋 Ver Órdenes", "🔍 Buscar", "📄 Cotizaciones", "🖨️ Imprimir Recibo"]
@@ -141,8 +147,32 @@ elif menu == "📋 Ver Órdenes":
     else:
         st.info("No hay órdenes registradas")
 
-# ==================== OTRAS SECCIONES (placeholder) ====================
-elif menu in ["🔍 Buscar", "📄 Cotizaciones", "🖨️ Imprimir Recibo", "📦 Inventario", "📊 Contabilidad", "💸 Gastos", "📅 Corte de Mes", "👥 Gestionar Usuarios"]:
-    st.info(f"Sección **{menu}** en desarrollo. Pronto estará completa.")
+# ==================== GESTIONAR USUARIOS ====================
+elif menu == "👥 Gestionar Usuarios":
+    if st.session_state.rol == "admin":
+        st.subheader("👥 Gestionar Usuarios")
+        st.dataframe(usuarios, use_container_width=True, hide_index=True)
+        
+        st.subheader("Crear nuevo usuario")
+        nuevo_usuario = st.text_input("Nuevo usuario")
+        nueva_password = st.text_input("Contraseña", type="password")
+        nuevo_rol = st.selectbox("Rol", ["trabajador", "admin"])
+        
+        if st.button("Crear Usuario"):
+            if nuevo_usuario and nueva_password:
+                if nuevo_usuario in usuarios["usuario"].values:
+                    st.error("Ese usuario ya existe")
+                else:
+                    nuevo = pd.DataFrame([{"usuario": nuevo_usuario, "password": nueva_password, "rol": nuevo_rol}])
+                    usuarios = pd.concat([usuarios, nuevo], ignore_index=True)
+                    usuarios.to_excel(USERS_FILE, index=False)
+                    st.success(f"Usuario {nuevo_usuario} creado correctamente")
+                    st.rerun()
+    else:
+        st.warning("Solo el administrador puede gestionar usuarios")
+
+# ==================== OTRAS SECCIONES ====================
+elif menu in ["🔍 Buscar", "📄 Cotizaciones", "🖨️ Imprimir Recibo", "📦 Inventario", "📊 Contabilidad", "💸 Gastos", "📅 Corte de Mes"]:
+    st.info(f"La sección **{menu}** está lista para completar. Dime si quieres que la desarrolle ahora.")
 
 st.sidebar.metric("Total Órdenes", len(df))
