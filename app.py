@@ -56,9 +56,15 @@ if st.sidebar.button("Cerrar Sesión"):
     st.session_state.logged_in = False
     st.rerun()
 
-# ==================== DATOS ====================
+# ==================== ARCHIVOS ====================
 DATA_FILE = "reparaciones.xlsx"
+INV_FILE = "inventario.xlsx"
+GASTOS_FILE = "gastos.xlsx"
 USERS_FILE = "usuarios.xlsx"
+ARCHIVE_FOLDER = "cortes_mensuales"
+
+if not os.path.exists(ARCHIVE_FOLDER):
+    os.makedirs(ARCHIVE_FOLDER)
 
 if os.path.exists(DATA_FILE):
     df = pd.read_excel(DATA_FILE)
@@ -67,6 +73,16 @@ else:
 
 if "Pagado" not in df.columns:
     df["Pagado"] = "Pendiente"
+
+if os.path.exists(INV_FILE):
+    inv = pd.read_excel(INV_FILE)
+else:
+    inv = pd.DataFrame(columns=["Producto", "Cantidad", "Precio_Unitario", "Fecha_Actualizacion"])
+
+if os.path.exists(GASTOS_FILE):
+    gastos = pd.read_excel(GASTOS_FILE)
+else:
+    gastos = pd.DataFrame(columns=["Fecha", "Descripcion", "Monto", "Categoria"])
 
 if not os.path.exists(USERS_FILE):
     pd.DataFrame([{"usuario": "admin", "password": "123456", "rol": "admin"}]).to_excel(USERS_FILE, index=False)
@@ -147,6 +163,110 @@ elif menu == "📋 Ver Órdenes":
     else:
         st.info("No hay órdenes registradas")
 
+# ==================== COTIZACIONES ====================
+elif menu == "📄 Cotizaciones":
+    st.subheader("📄 Nueva Cotización")
+    col1, col2 = st.columns(2)
+    with col1:
+        cliente_cot = st.text_input("Nombre del Cliente")
+        telefono_cot = st.text_input("Teléfono")
+        equipo_cot = st.text_input("Equipo")
+    with col2:
+        descripcion_cot = st.text_area("Descripción del servicio")
+        precio_cot = st.number_input("Precio cotizado ($)", min_value=0, step=1000)
+    
+    if st.button("Generar Cotización", type="primary"):
+        if cliente_cot and precio_cot > 0:
+            st.markdown(f"""
+            <div style="background-color: white; color: black; padding: 25px; border-radius: 10px; max-width: 600px; margin: auto;">
+                <h2 style="text-align: center;">Electronic Tech Service</h2>
+                <p style="text-align: center;">Cotización — {datetime.now().strftime("%d/%m/%Y")}</p>
+                <hr>
+                <p><strong>Cliente:</strong> {cliente_cot}</p>
+                <p><strong>Teléfono:</strong> {telefono_cot}</p>
+                <p><strong>Equipo:</strong> {equipo_cot}</p>
+                <p><strong>Descripción:</strong> {descripcion_cot}</p>
+                <h3 style="text-align: right;">Total: ${int(precio_cot):,}</h3>
+                <hr>
+                <p style="text-align: center;">Montería - Córdoba • Barrio El Mundo López</p>
+                <p style="text-align: center;">WhatsApp: <strong>301 487 4740</strong></p>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.error("Completa los campos")
+
+# ==================== INVENTARIO ====================
+elif menu == "📦 Inventario":
+    if st.session_state.rol == "admin":
+        st.subheader("📦 Gestión de Inventario")
+        tab1, tab2 = st.tabs(["Ver Inventario", "Agregar Producto"])
+        
+        with tab1:
+            if not inv.empty:
+                st.dataframe(inv, use_container_width=True, hide_index=True)
+            else:
+                st.info("No hay productos en inventario")
+        
+        with tab2:
+            producto = st.text_input("Nombre del Producto")
+            cantidad = st.number_input("Cantidad", min_value=1, value=1)
+            precio = st.number_input("Precio Unitario", min_value=0)
+            if st.button("Agregar"):
+                if producto:
+                    nuevo = {"Producto": producto, "Cantidad": cantidad, "Precio_Unitario": precio, "Fecha_Actualizacion": datetime.now().strftime("%Y-%m-%d %H:%M")}
+                    inv = pd.concat([inv, pd.DataFrame([nuevo])], ignore_index=True)
+                    inv.to_excel(INV_FILE, index=False)
+                    st.success("Producto agregado")
+                    st.rerun()
+    else:
+        st.warning("Solo el administrador puede ver el inventario")
+
+# ==================== CONTABILIDAD ====================
+elif menu == "📊 Contabilidad":
+    if st.session_state.rol == "admin":
+        st.subheader("📊 Contabilidad")
+        total = df["Precio_Estimado"].sum() if not df.empty else 0
+        st.metric("Total Estimado", f"${total:,.0f}")
+    else:
+        st.warning("Solo el administrador puede ver la contabilidad")
+
+# ==================== GASTOS ====================
+elif menu == "💸 Gastos":
+    if st.session_state.rol == "admin":
+        st.subheader("💸 Gastos")
+        desc = st.text_input("Descripción del gasto")
+        monto = st.number_input("Monto", min_value=0, step=1000)
+        if st.button("Registrar Gasto"):
+            if desc and monto > 0:
+                nuevo = {"Fecha": datetime.now().strftime("%Y-%m-%d %H:%M"), "Descripcion": desc, "Monto": monto, "Categoria": "General"}
+                gastos = pd.concat([gastos, pd.DataFrame([nuevo])], ignore_index=True)
+                gastos.to_excel(GASTOS_FILE, index=False)
+                st.success("Gasto registrado")
+                st.rerun()
+        
+        if not gastos.empty:
+            st.dataframe(gastos, use_container_width=True, hide_index=True)
+    else:
+        st.warning("Solo el administrador puede registrar gastos")
+
+# ==================== CORTE DE MES ====================
+elif menu == "📅 Corte de Mes":
+    if st.session_state.rol == "admin":
+        st.subheader("📅 Corte Mensual")
+        if st.button("🔴 Cerrar Mes Actual"):
+            if not df.empty:
+                mes = datetime.now().strftime("%Y-%m")
+                ruta = os.path.join(ARCHIVE_FOLDER, f"corte_{mes}.xlsx")
+                df.to_excel(ruta, index=False)
+                df = pd.DataFrame(columns=df.columns)
+                df.to_excel(DATA_FILE, index=False)
+                st.success(f"Mes {mes} cerrado y guardado")
+                st.balloons()
+            else:
+                st.warning("No hay datos para cerrar")
+    else:
+        st.warning("Solo el administrador puede hacer el corte de mes")
+
 # ==================== GESTIONAR USUARIOS ====================
 elif menu == "👥 Gestionar Usuarios":
     if st.session_state.rol == "admin":
@@ -166,13 +286,9 @@ elif menu == "👥 Gestionar Usuarios":
                     nuevo = pd.DataFrame([{"usuario": nuevo_usuario, "password": nueva_password, "rol": nuevo_rol}])
                     usuarios = pd.concat([usuarios, nuevo], ignore_index=True)
                     usuarios.to_excel(USERS_FILE, index=False)
-                    st.success(f"Usuario {nuevo_usuario} creado correctamente")
+                    st.success(f"Usuario {nuevo_usuario} creado")
                     st.rerun()
     else:
         st.warning("Solo el administrador puede gestionar usuarios")
-
-# ==================== OTRAS SECCIONES ====================
-elif menu in ["🔍 Buscar", "📄 Cotizaciones", "🖨️ Imprimir Recibo", "📦 Inventario", "📊 Contabilidad", "💸 Gastos", "📅 Corte de Mes"]:
-    st.info(f"La sección **{menu}** está lista para completar. Dime si quieres que la desarrolle ahora.")
 
 st.sidebar.metric("Total Órdenes", len(df))
