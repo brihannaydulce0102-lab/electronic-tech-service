@@ -2,7 +2,11 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import os
-import shutil
+
+
+# ==========================================================
+# CONFIGURACIÓN
+# ==========================================================
 
 st.set_page_config(
     page_title="Electronic Tech Service",
@@ -10,9 +14,19 @@ st.set_page_config(
     layout="wide"
 )
 
+
+# ==========================================================
+# DISEÑO
+# ==========================================================
+
 st.markdown("""
 <style>
-    .stApp { background-color: #0a0a23; color: #ffffff; }
+
+    .stApp {
+        background-color: #0a0a23;
+        color: #ffffff;
+    }
+
     .stButton>button {
         background-color: #00f5ff;
         color: #000000;
@@ -20,7 +34,11 @@ st.markdown("""
         padding: 12px;
         border-radius: 10px;
     }
-    h1, h2, h3 { color: #00f5ff; }
+
+    h1, h2, h3 {
+        color: #00f5ff;
+    }
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -37,8 +55,10 @@ USERS_FILE = "usuarios.xlsx"
 ARCHIVE_FOLDER = "cortes_mensuales"
 PHOTO_FOLDER = "fotos_equipos"
 
+
 if not os.path.exists(ARCHIVE_FOLDER):
     os.makedirs(ARCHIVE_FOLDER)
+
 
 if not os.path.exists(PHOTO_FOLDER):
     os.makedirs(PHOTO_FOLDER)
@@ -48,16 +68,131 @@ if not os.path.exists(PHOTO_FOLDER):
 # USUARIOS
 # ==========================================================
 
-if not os.path.exists(USERS_FILE):
-    pd.DataFrame([
+if os.path.exists(USERS_FILE):
+
+    usuarios = pd.read_excel(USERS_FILE)
+
+else:
+
+    usuarios = pd.DataFrame([
         {
             "usuario": "admin",
             "password": "123456",
             "rol": "admin"
         }
-    ]).to_excel(USERS_FILE, index=False)
+    ])
 
-usuarios = pd.read_excel(USERS_FILE)
+    usuarios.to_excel(
+        USERS_FILE,
+        index=False
+    )
+
+
+# ==========================================================
+# CORRECCIÓN AUTOMÁTICA DE USUARIOS
+# ==========================================================
+
+# Limpiar nombres de columnas
+usuarios.columns = [
+    str(col).strip().lower()
+    for col in usuarios.columns
+]
+
+
+# Si anteriormente utilizabas "contraseña",
+# convertirla automáticamente a "password"
+if "password" not in usuarios.columns:
+
+    if "contraseña" in usuarios.columns:
+
+        usuarios["password"] = usuarios["contraseña"]
+
+    elif "clave" in usuarios.columns:
+
+        usuarios["password"] = usuarios["clave"]
+
+    else:
+
+        usuarios["password"] = ""
+
+
+if "usuario" not in usuarios.columns:
+    usuarios["usuario"] = ""
+
+
+if "rol" not in usuarios.columns:
+    usuarios["rol"] = "trabajador"
+
+
+# ==========================================================
+# ASEGURAR QUE EXISTA ADMIN
+# ==========================================================
+
+usuarios["usuario"] = (
+    usuarios["usuario"]
+    .fillna("")
+    .astype(str)
+    .str.strip()
+)
+
+
+usuarios["password"] = (
+    usuarios["password"]
+    .fillna("")
+    .astype(str)
+)
+
+
+usuarios["rol"] = (
+    usuarios["rol"]
+    .fillna("trabajador")
+    .astype(str)
+)
+
+
+admin_existente = usuarios[
+    usuarios["usuario"].str.lower() == "admin"
+]
+
+
+if admin_existente.empty:
+
+    nuevo_admin = pd.DataFrame([
+        {
+            "usuario": "admin",
+            "password": "123456",
+            "rol": "admin"
+        }
+    ])
+
+    usuarios = pd.concat(
+        [usuarios, nuevo_admin],
+        ignore_index=True
+    )
+
+else:
+
+    # Si el admin existe pero tiene contraseña vacía,
+    # recuperar la contraseña inicial
+    indice_admin = admin_existente.index[0]
+
+    if usuarios.loc[indice_admin, "password"].strip() == "":
+
+        usuarios.loc[
+            indice_admin,
+            "password"
+        ] = "123456"
+
+        usuarios.loc[
+            indice_admin,
+            "rol"
+        ] = "admin"
+
+
+usuarios.to_excel(
+    USERS_FILE,
+    index=False
+)
 
 
 # ==========================================================
@@ -65,6 +200,7 @@ usuarios = pd.read_excel(USERS_FILE)
 # ==========================================================
 
 if "logged_in" not in st.session_state:
+
     st.session_state.logged_in = False
     st.session_state.usuario = ""
     st.session_state.rol = ""
@@ -72,18 +208,38 @@ if "logged_in" not in st.session_state:
 
 if not st.session_state.logged_in:
 
-    col1, col2, col3 = st.columns([1, 2, 1])
+    col1, col2, col3 = st.columns(
+        [1, 2, 1]
+    )
 
     with col2:
 
         if os.path.exists("logo.png"):
-            st.image("logo.png", width=280)
 
-        st.title("Electronic Tech Service")
-        st.markdown("**Iniciar Sesión**")
+            st.image(
+                "logo.png",
+                width=280
+            )
 
-        usuario = st.text_input("Usuario")
-        password = st.text_input("Contraseña", type="password")
+        st.title(
+            "Electronic Tech Service"
+        )
+
+        st.markdown(
+            "**Iniciar Sesión**"
+        )
+
+
+        usuario_login = st.text_input(
+            "Usuario"
+        )
+
+
+        password_login = st.text_input(
+            "Contraseña",
+            type="password"
+        )
+
 
         if st.button(
             "Entrar",
@@ -91,32 +247,56 @@ if not st.session_state.logged_in:
             use_container_width=True
         ):
 
-            usuario_busqueda = usuarios[
-                usuarios["usuario"].astype(str).str.strip().str.lower()
-                == usuario.strip().lower()
+            usuario_encontrado = usuarios[
+                usuarios["usuario"]
+                .str.lower()
+                ==
+                usuario_login.strip().lower()
             ]
 
-            if not usuario_busqueda.empty:
 
-                usuario_encontrado = usuario_busqueda.iloc[0]
+            if not usuario_encontrado.empty:
 
-                if str(usuario_encontrado["password"]) == password.strip():
+                datos_usuario = (
+                    usuario_encontrado.iloc[0]
+                )
+
+                password_guardada = str(
+                    datos_usuario["password"]
+                ).strip()
+
+
+                if password_guardada == password_login.strip():
 
                     st.session_state.logged_in = True
-                    st.session_state.usuario = usuario_encontrado["usuario"]
-                    st.session_state.rol = usuario_encontrado["rol"]
+
+                    st.session_state.usuario = (
+                        datos_usuario["usuario"]
+                    )
+
+                    st.session_state.rol = (
+                        datos_usuario["rol"]
+                    )
 
                     st.success(
-                        f"Bienvenido {st.session_state.usuario}"
+                        f"Bienvenido "
+                        f"{st.session_state.usuario}"
                     )
 
                     st.rerun()
 
                 else:
-                    st.error("Usuario o contraseña incorrectos")
+
+                    st.error(
+                        "Usuario o contraseña incorrectos"
+                    )
 
             else:
-                st.error("Usuario o contraseña incorrectos")
+
+                st.error(
+                    "Usuario o contraseña incorrectos"
+                )
+
 
     st.stop()
 
@@ -125,27 +305,41 @@ if not st.session_state.logged_in:
 # DESPUÉS DEL LOGIN
 # ==========================================================
 
-col1, col2 = st.columns([1, 4])
+col1, col2 = st.columns(
+    [1, 4]
+)
+
 
 with col1:
 
     if os.path.exists("logo.png"):
-        st.image("logo.png", width=180)
+
+        st.image(
+            "logo.png",
+            width=180
+        )
+
 
 with col2:
 
-    st.title("Electronic Tech Service")
+    st.title(
+        "Electronic Tech Service"
+    )
 
 
 st.markdown(
-    f"**Usuario:** {st.session_state.usuario} "
+    f"**Usuario:** "
+    f"{st.session_state.usuario} "
     f"({st.session_state.rol})"
 )
+
 
 st.markdown("---")
 
 
-if st.sidebar.button("Cerrar Sesión"):
+if st.sidebar.button(
+    "Cerrar Sesión"
+):
 
     st.session_state.logged_in = False
     st.session_state.usuario = ""
@@ -160,32 +354,38 @@ if st.sidebar.button("Cerrar Sesión"):
 
 if os.path.exists(DATA_FILE):
 
-    df = pd.read_excel(DATA_FILE)
+    df = pd.read_excel(
+        DATA_FILE
+    )
 
 else:
 
-    df = pd.DataFrame(columns=[
-        "ID",
-        "Fecha",
-        "Cliente",
-        "Telefono",
-        "Equipo",
-        "Problema",
-        "Precio_Estimado",
-        "Estado",
-        "Tecnico",
-        "Notas",
-        "Pagado",
-        "Foto"
-    ])
+    df = pd.DataFrame(
+        columns=[
+            "ID",
+            "Fecha",
+            "Cliente",
+            "Telefono",
+            "Equipo",
+            "Problema",
+            "Precio_Estimado",
+            "Estado",
+            "Tecnico",
+            "Notas",
+            "Pagado",
+            "Foto"
+        ]
+    )
 
 
-# Si el archivo viejo no tiene Foto
+# Compatibilidad con archivo antiguo
 if "Foto" not in df.columns:
+
     df["Foto"] = ""
 
 
 if "Pagado" not in df.columns:
+
     df["Pagado"] = "Pendiente"
 
 
@@ -195,16 +395,20 @@ if "Pagado" not in df.columns:
 
 if os.path.exists(INV_FILE):
 
-    inv = pd.read_excel(INV_FILE)
+    inv = pd.read_excel(
+        INV_FILE
+    )
 
 else:
 
-    inv = pd.DataFrame(columns=[
-        "Producto",
-        "Cantidad",
-        "Precio_Unitario",
-        "Fecha_Actualizacion"
-    ])
+    inv = pd.DataFrame(
+        columns=[
+            "Producto",
+            "Cantidad",
+            "Precio_Unitario",
+            "Fecha_Actualizacion"
+        ]
+    )
 
 
 # ==========================================================
@@ -213,16 +417,20 @@ else:
 
 if os.path.exists(GASTOS_FILE):
 
-    gastos = pd.read_excel(GASTOS_FILE)
+    gastos = pd.read_excel(
+        GASTOS_FILE
+    )
 
 else:
 
-    gastos = pd.DataFrame(columns=[
-        "Fecha",
-        "Descripcion",
-        "Monto",
-        "Categoria"
-    ])
+    gastos = pd.DataFrame(
+        columns=[
+            "Fecha",
+            "Descripcion",
+            "Monto",
+            "Categoria"
+        ]
+    )
 
 
 # ==========================================================
@@ -262,20 +470,30 @@ menu = st.sidebar.selectbox(
 
 if menu == "🏠 Inicio":
 
-    st.subheader("Resumen del Día")
+    st.subheader(
+        "Resumen del Día"
+    )
 
     col1, col2, col3 = st.columns(3)
+
 
     col1.metric(
         "Total Órdenes",
         len(df)
     )
 
+
     col2.metric(
         "Pendientes",
-        len(df[df["Estado"] != "Entregado"])
-        if not df.empty else 0
+        len(
+            df[
+                df["Estado"] != "Entregado"
+            ]
+        )
+        if not df.empty
+        else 0
     )
+
 
     col3.metric(
         "Hoy",
@@ -284,11 +502,14 @@ if menu == "🏠 Inicio":
                 df["Fecha"]
                 .astype(str)
                 .str.contains(
-                    datetime.now().strftime("%Y-%m-%d")
+                    datetime.now().strftime(
+                        "%Y-%m-%d"
+                    )
                 )
             ]
         )
-        if not df.empty else 0
+        if not df.empty
+        else 0
     )
 
 
@@ -298,9 +519,13 @@ if menu == "🏠 Inicio":
 
 elif menu == "📋 Nueva Reparación":
 
-    st.subheader("📋 Nueva Orden de Reparación")
+    st.subheader(
+        "📋 Nueva Orden de Reparación"
+    )
+
 
     col1, col2 = st.columns(2)
+
 
     with col1:
 
@@ -308,15 +533,21 @@ elif menu == "📋 Nueva Reparación":
             "Nombre del Cliente *"
         )
 
+
         telefono = st.text_input(
             "Teléfono / WhatsApp *"
         )
+
 
         equipo = st.text_input(
             "Equipo *"
         )
 
-        # NUEVO
+
+        # ==================================================
+        # FOTO DEL EQUIPO
+        # ==================================================
+
         foto_equipo = st.file_uploader(
             "📷 Foto del equipo",
             type=[
@@ -327,17 +558,20 @@ elif menu == "📋 Nueva Reparación":
             ]
         )
 
+
     with col2:
 
         problema = st.text_area(
             "Descripción del problema *"
         )
 
+
         precio = st.number_input(
             "Precio estimado ($)",
             min_value=0,
             step=1000
         )
+
 
         estado = st.selectbox(
             "Estado",
@@ -350,10 +584,12 @@ elif menu == "📋 Nueva Reparación":
         )
 
 
-    # Mostrar vista previa
+    # Vista previa
     if foto_equipo is not None:
 
-        st.markdown("### 📷 Vista previa")
+        st.markdown(
+            "### 📷 Vista previa"
+        )
 
         st.image(
             foto_equipo,
@@ -366,20 +602,40 @@ elif menu == "📋 Nueva Reparación":
         type="primary"
     ):
 
-        if cliente and telefono and equipo and problema:
+        if (
+            cliente
+            and telefono
+            and equipo
+            and problema
+        ):
 
-            # CORRECCIÓN DEL ID
+            # ==================================================
+            # ID CORREGIDO
+            # ==================================================
+
             if df.empty:
+
                 nuevo_id = 1
+
             else:
-                nuevo_id = int(df["ID"].max()) + 1
+
+                nuevo_id = (
+                    int(
+                        pd.to_numeric(
+                            df["ID"],
+                            errors="coerce"
+                        ).max()
+                    )
+                    + 1
+                )
 
 
-            # ==========================================
+            # ==================================================
             # GUARDAR FOTO
-            # ==========================================
+            # ==================================================
 
             ruta_foto = ""
+
 
             if foto_equipo is not None:
 
@@ -387,16 +643,19 @@ elif menu == "📋 Nueva Reparación":
                     foto_equipo.name
                 )[1].lower()
 
+
                 nombre_foto = (
-                    f"orden_{nuevo_id}"
-                    f"_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+                    f"orden_{nuevo_id}_"
+                    f"{datetime.now().strftime('%Y%m%d%H%M%S')}"
                     f"{extension}"
                 )
+
 
                 ruta_foto = os.path.join(
                     PHOTO_FOLDER,
                     nombre_foto
                 )
+
 
                 with open(
                     ruta_foto,
@@ -408,9 +667,9 @@ elif menu == "📋 Nueva Reparación":
                     )
 
 
-            # ==========================================
-            # NUEVA ORDEN
-            # ==========================================
+            # ==================================================
+            # CREAR ORDEN
+            # ==================================================
 
             nueva = {
 
@@ -472,12 +731,16 @@ elif menu == "📋 Nueva Reparación":
                 f"✅ Orden #{nuevo_id} guardada!"
             )
 
+
             if ruta_foto:
+
                 st.success(
-                    "📷 Fotografía del equipo guardada correctamente"
+                    "📷 Foto guardada correctamente"
                 )
 
+
             st.balloons()
+
 
         else:
 
@@ -492,17 +755,17 @@ elif menu == "📋 Nueva Reparación":
 
 elif menu == "📋 Ver Órdenes":
 
-    st.subheader("📋 Todas las Reparaciones")
+    st.subheader(
+        "📋 Todas las Reparaciones"
+    )
+
 
     if not df.empty:
-
-        # ==========================================
-        # MOSTRAR ÓRDENES CON FOTO
-        # ==========================================
 
         for _, orden in df.iterrows():
 
             st.markdown("---")
+
 
             col_foto, col_info = st.columns(
                 [1, 4]
@@ -513,10 +776,18 @@ elif menu == "📋 Ver Órdenes":
             with col_foto:
 
                 foto = str(
-                    orden.get("Foto", "")
+                    orden.get(
+                        "Foto",
+                        ""
+                    )
                 )
 
-                if foto and os.path.exists(foto):
+
+                if (
+                    foto
+                    and foto != "nan"
+                    and os.path.exists(foto)
+                ):
 
                     st.image(
                         foto,
@@ -537,40 +808,48 @@ elif menu == "📋 Ver Órdenes":
                     f"### 🔧 Orden #{orden['ID']}"
                 )
 
+
                 st.write(
                     f"**Cliente:** "
                     f"{orden['Cliente']}"
                 )
+
 
                 st.write(
                     f"**Teléfono:** "
                     f"{orden['Telefono']}"
                 )
 
+
                 st.write(
                     f"**Equipo:** "
                     f"{orden['Equipo']}"
                 )
+
 
                 st.write(
                     f"**Problema:** "
                     f"{orden['Problema']}"
                 )
 
+
                 st.write(
                     f"**Precio estimado:** "
                     f"${orden['Precio_Estimado']:,.0f}"
                 )
+
 
                 st.write(
                     f"**Estado:** "
                     f"{orden['Estado']}"
                 )
 
+
                 st.write(
                     f"**Técnico:** "
                     f"{orden['Tecnico']}"
                 )
+
 
                 st.write(
                     f"**Fecha:** "
@@ -578,9 +857,9 @@ elif menu == "📋 Ver Órdenes":
                 )
 
 
-        # ==========================================
-        # TABLA COMPLETA
-        # ==========================================
+        # ==================================================
+        # TABLA
+        # ==================================================
 
         with st.expander(
             "📊 Ver tabla completa"
@@ -593,9 +872,9 @@ elif menu == "📋 Ver Órdenes":
             )
 
 
-        # ==========================================
-        # ELIMINAR ORDEN
-        # ==========================================
+        # ==================================================
+        # ELIMINAR
+        # ==================================================
 
         if st.session_state.rol == "admin":
 
@@ -603,6 +882,7 @@ elif menu == "📋 Ver Órdenes":
                 "✏️ Eliminar Orden "
                 "(Solo Administrador)"
             )
+
 
             id_accion = st.number_input(
                 "ID de la Orden",
@@ -617,10 +897,10 @@ elif menu == "📋 Ver Órdenes":
 
                 if id_accion in df["ID"].values:
 
-                    # Buscar fotografía
                     orden_eliminar = df[
                         df["ID"] == id_accion
                     ]
+
 
                     if not orden_eliminar.empty:
 
@@ -631,8 +911,12 @@ elif menu == "📋 Ver Órdenes":
                             )
                         )
 
-                        # Eliminar foto
-                        if foto and os.path.exists(foto):
+
+                        if (
+                            foto
+                            and foto != "nan"
+                            and os.path.exists(foto)
+                        ):
 
                             os.remove(foto)
 
@@ -641,16 +925,20 @@ elif menu == "📋 Ver Órdenes":
                         df["ID"] != id_accion
                     ]
 
+
                     df.to_excel(
                         DATA_FILE,
                         index=False
                     )
 
+
                     st.success(
                         "Orden eliminada"
                     )
 
+
                     st.rerun()
+
 
                 else:
 
@@ -658,11 +946,13 @@ elif menu == "📋 Ver Órdenes":
                         "ID no encontrado"
                     )
 
+
         else:
 
             st.info(
                 "Solo el administrador puede eliminar órdenes"
             )
+
 
     else:
 
@@ -677,11 +967,15 @@ elif menu == "📋 Ver Órdenes":
 
 elif menu == "🔍 Buscar":
 
-    st.subheader("🔍 Buscar Órdenes")
+    st.subheader(
+        "🔍 Buscar Órdenes"
+    )
+
 
     texto_busqueda = st.text_input(
         "Buscar por cliente, teléfono, equipo o ID"
     )
+
 
     if texto_busqueda:
 
@@ -723,13 +1017,15 @@ elif menu == "🔍 Buscar":
         if not resultado.empty:
 
             st.success(
-                f"Se encontraron {len(resultado)} orden(es)"
+                f"Se encontraron "
+                f"{len(resultado)} orden(es)"
             )
 
 
             for _, orden in resultado.iterrows():
 
                 st.markdown("---")
+
 
                 col_foto, col_info = st.columns(
                     [1, 4]
@@ -745,7 +1041,12 @@ elif menu == "🔍 Buscar":
                         )
                     )
 
-                    if foto and os.path.exists(foto):
+
+                    if (
+                        foto
+                        and foto != "nan"
+                        and os.path.exists(foto)
+                    ):
 
                         st.image(
                             foto,
@@ -765,30 +1066,36 @@ elif menu == "🔍 Buscar":
                         f"### 🔧 Orden #{orden['ID']}"
                     )
 
+
                     st.write(
                         f"**Cliente:** "
                         f"{orden['Cliente']}"
                     )
+
 
                     st.write(
                         f"**Equipo:** "
                         f"{orden['Equipo']}"
                     )
 
+
                     st.write(
                         f"**Problema:** "
                         f"{orden['Problema']}"
                     )
+
 
                     st.write(
                         f"**Estado:** "
                         f"{orden['Estado']}"
                     )
 
+
                     st.write(
                         f"**Precio:** "
                         f"${orden['Precio_Estimado']:,.0f}"
                     )
+
 
         else:
 
@@ -803,9 +1110,13 @@ elif menu == "🔍 Buscar":
 
 elif menu == "📄 Cotizaciones":
 
-    st.subheader("📄 Nueva Cotización")
+    st.subheader(
+        "📄 Nueva Cotización"
+    )
+
 
     col1, col2 = st.columns(2)
+
 
     with col1:
 
@@ -813,19 +1124,23 @@ elif menu == "📄 Cotizaciones":
             "Nombre del Cliente"
         )
 
+
         telefono_cot = st.text_input(
             "Teléfono"
         )
 
+
         equipo_cot = st.text_input(
             "Equipo"
         )
+
 
     with col2:
 
         descripcion_cot = st.text_area(
             "Descripción del servicio"
         )
+
 
         precio_cot = st.number_input(
             "Precio cotizado ($)",
@@ -923,6 +1238,7 @@ elif menu == "📦 Inventario":
             "📦 Gestión de Inventario"
         )
 
+
         tab1, tab2 = st.tabs(
             [
                 "Ver Inventario",
@@ -954,11 +1270,13 @@ elif menu == "📦 Inventario":
                 "Nombre del Producto"
             )
 
+
             cantidad = st.number_input(
                 "Cantidad",
                 min_value=1,
                 value=1
             )
+
 
             precio = st.number_input(
                 "Precio Unitario",
@@ -966,7 +1284,9 @@ elif menu == "📦 Inventario":
             )
 
 
-            if st.button("Agregar"):
+            if st.button(
+                "Agregar"
+            ):
 
                 if producto:
 
@@ -1007,6 +1327,7 @@ elif menu == "📦 Inventario":
                         "Producto agregado"
                     )
 
+
                     st.rerun()
 
     else:
@@ -1028,11 +1349,13 @@ elif menu == "📊 Contabilidad":
             "📊 Contabilidad"
         )
 
+
         total = (
             df["Precio_Estimado"].sum()
             if not df.empty
             else 0
         )
+
 
         st.metric(
             "Total Estimado",
@@ -1058,9 +1381,11 @@ elif menu == "💸 Gastos":
             "💸 Gastos"
         )
 
+
         desc = st.text_input(
             "Descripción del gasto"
         )
+
 
         monto = st.number_input(
             "Monto",
@@ -1112,6 +1437,7 @@ elif menu == "💸 Gastos":
                     "Gasto registrado"
                 )
 
+
                 st.rerun()
 
 
@@ -1153,6 +1479,7 @@ elif menu == "📅 Corte de Mes":
                     "%Y-%m"
                 )
 
+
                 ruta = os.path.join(
                     ARCHIVE_FOLDER,
                     f"corte_{mes}.xlsx"
@@ -1179,6 +1506,7 @@ elif menu == "📅 Corte de Mes":
                 st.success(
                     f"Mes {mes} cerrado y guardado"
                 )
+
 
                 st.balloons()
 
@@ -1208,33 +1536,54 @@ elif menu == "👥 Gestionar Usuarios":
         )
 
 
+        # ==================================================
+        # MOSTRAR USUARIOS
+        # ==================================================
+
         st.dataframe(
-            usuarios,
+            usuarios[
+                [
+                    "usuario",
+                    "rol"
+                ]
+            ],
             use_container_width=True,
             hide_index=True
         )
 
 
+        st.markdown("---")
+
+
+        # ==================================================
+        # CREAR USUARIO
+        # ==================================================
+
         st.subheader(
-            "Crear nuevo usuario"
+            "➕ Crear nuevo usuario"
         )
 
 
         nuevo_usuario = st.text_input(
-            "Nuevo usuario"
+            "Nuevo usuario",
+            key="nuevo_usuario"
         )
+
 
         nueva_password = st.text_input(
             "Contraseña",
-            type="password"
+            type="password",
+            key="nueva_password"
         )
+
 
         nuevo_rol = st.selectbox(
             "Rol",
             [
                 "trabajador",
                 "admin"
-            ]
+            ],
+            key="nuevo_rol"
         )
 
 
@@ -1242,65 +1591,92 @@ elif menu == "👥 Gestionar Usuarios":
             "Crear Usuario"
         ):
 
-            if nuevo_usuario and nueva_password:
-
-                if nuevo_usuario in usuarios[
-                    "usuario"
-                ].values:
-
-                    st.error(
-                        "Ese usuario ya existe"
-                    )
-
-                else:
-
-                    nuevo = pd.DataFrame([
-                        {
-                            "usuario":
-                                nuevo_usuario,
-
-                            "password":
-                                nueva_password,
-
-                            "rol":
-                                nuevo_rol
-                        }
-                    ])
+            usuario_existe = usuarios[
+                usuarios["usuario"]
+                .str.lower()
+                ==
+                nuevo_usuario.strip().lower()
+            ]
 
 
-                    usuarios = pd.concat(
-                        [
-                            usuarios,
-                            nuevo
-                        ],
-                        ignore_index=True
-                    )
+            if not nuevo_usuario or not nueva_password:
+
+                st.error(
+                    "Completa usuario y contraseña"
+                )
 
 
-                    usuarios.to_excel(
-                        USERS_FILE,
-                        index=False
-                    )
+            elif not usuario_existe.empty:
+
+                st.error(
+                    "Ese usuario ya existe"
+                )
 
 
-                    st.success(
-                        f"Usuario {nuevo_usuario} creado"
-                    )
+            else:
 
-                    st.rerun()
+                nuevo = pd.DataFrame([
+                    {
+                        "usuario":
+                            nuevo_usuario.strip(),
 
-    else:
+                        "password":
+                            nueva_password,
 
-        st.warning(
-            "Solo el administrador puede gestionar usuarios"
+                        "rol":
+                            nuevo_rol
+                    }
+                ])
+
+
+                usuarios = pd.concat(
+                    [
+                        usuarios,
+                        nuevo
+                    ],
+                    ignore_index=True
+                )
+
+
+                usuarios.to_excel(
+                    USERS_FILE,
+                    index=False
+                )
+
+
+                st.success(
+                    f"Usuario "
+                    f"{nuevo_usuario} creado"
+                )
+
+
+                st.rerun()
+
+
+        st.markdown("---")
+
+
+        # ==================================================
+        # EDITAR USUARIO
+        # ==================================================
+
+        st.subheader(
+            "✏️ Editar usuario"
         )
 
 
-# ==========================================================
-# TOTAL ÓRDENES
-# ==========================================================
+        lista_usuarios = usuarios[
+            "usuario"
+        ].tolist()
 
-st.sidebar.metric(
-    "Total Órdenes",
-    len(df)
-)
+
+        if lista_usuarios:
+
+            usuario_seleccionado = st.selectbox(
+                "Seleccionar usuario",
+                lista_usuarios,
+                key="usuario_editar"
+            )
+
+
+            datos
