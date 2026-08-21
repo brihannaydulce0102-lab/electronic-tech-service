@@ -17,8 +17,11 @@ st.markdown("""
 USERS_FILE = "usuarios.xlsx"
 DATA_FILE = "reparaciones.xlsx"
 
-if not os.path.exists(USERS_FILE):
-    pd.DataFrame([{"usuario": "admin", "contraseña": "123456", "rol": "admin"}]).to_excel(USERS_FILE, index=False)
+# Forzar creación del usuario admin
+usuarios_default = pd.DataFrame([
+    {"usuario": "admin", "contraseña": "123456", "rol": "admin"}
+])
+usuarios_default.to_excel(USERS_FILE, index=False)
 
 usuarios = pd.read_excel(USERS_FILE)
 
@@ -170,3 +173,7 @@ elif menu == "👥 Gestionar Usuarios":
                     usuarios.to_excel(USERS_FILE, index=False)
                     st.success(f"Usuario {nuevo_usuario} creado")
                     st.rerun()
+    else:
+        st.warning("Solo el administrador puede gestionar usuarios")
+
+st.sidebar.metric("Total Órdenes", len(df))
