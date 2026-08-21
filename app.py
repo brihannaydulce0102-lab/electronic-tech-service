@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 from datetime import datetime
@@ -6,11 +5,22 @@ import os
 
 st.set_page_config(
     page_title="Electronic Tech Service",
-    page_icon="logo.png",          # ← Muy importante
+    page_icon="logo.png",
     layout="wide"
 )
 
-# Logo grande en la página
+# Forzar el ícono de la aplicación (muy importante)
+st.markdown("""
+    <link rel="icon" href="logo.png" type="image/png">
+    <link rel="shortcut icon" href="logo.png" type="image/png">
+    <link rel="apple-touch-icon" href="logo.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="logo.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="logo.png">
+    <link rel="apple-touch-icon" sizes="144x144" href="logo.png">
+    <link rel="apple-touch-icon" sizes="120x120" href="logo.png">
+""", unsafe_allow_html=True)
+
+# Logo grande
 col1, col2 = st.columns([1, 4])
 with col1:
     if os.path.exists("logo.png"):
@@ -23,6 +33,7 @@ with col2:
 
 st.markdown("**Servicio Técnico Electrónico**")
 st.markdown("---")
+
 # ==================== ARCHIVOS ====================
 DATA_FILE = "reparaciones.xlsx"
 ARCHIVE_FOLDER = "cortes_mensuales"
