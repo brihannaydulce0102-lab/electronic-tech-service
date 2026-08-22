@@ -1,27 +1,9 @@
 import streamlit as st
 import pandas as pd
 import os
-import hashlib
-import base64
-import shutil
-import urllib.parse
-import qrcode
-from io import BytesIO
 from datetime import datetime
 from PIL import Image
-import matplotlib.pyplot as plt
-
-from streamlit_drawable_canvas import st_canvas
-
-from reportlab.platypus import (
-    SimpleDocTemplate,
-    Paragraph,
-    Spacer,
-    Image as RLImage
-)
-
-from reportlab.lib.styles import getSampleStyleSheet
-
+import hashlib
 
 st.set_page_config(
     page_title="Electronic Tech Service",
@@ -29,9 +11,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# ===========================
-# ESTILO
-# ===========================
+# ------------------ DISEÑO ------------------
 
 st.markdown("""
 <style>
@@ -42,242 +22,58 @@ color:white;
 }
 
 .stButton>button{
-background:#00E5FF;
+background:#00e5ff;
 color:black;
 font-weight:bold;
 border-radius:12px;
-padding:12px;
-width:100%;
+padding:10px;
 }
 
 .card{
 background:#111133;
-padding:16px;
+padding:15px;
 border-radius:15px;
 margin-bottom:15px;
-}
-
-@media (max-width:768px){
-
-h1{
-font-size:28px;
-}
-
 }
 
 </style>
 """,unsafe_allow_html=True)
 
-# ===========================
-# RUTAS
-# ===========================
+# ------------------ CARPETAS ------------------
+
+ARCHIVE_FOLDER="cortes_mensuales"
+ASSETS_FOLDER="assets"
+
+os.makedirs(ARCHIVE_FOLDER,exist_ok=True)
+os.makedirs(ASSETS_FOLDER,exist_ok=True)
 
 DATA_FILE="reparaciones.xlsx"
 INV_FILE="inventario.xlsx"
 GASTOS_FILE="gastos.xlsx"
 USERS_FILE="usuarios.xlsx"
 
-ASSETS="assets"
-BACKUP="backup"
-ARCHIVE="cortes_mensuales"
+# ------------------ HASH ------------------
 
-for carpeta in [ASSETS,BACKUP,ARCHIVE]:
-    os.makedirs(carpeta,exist_ok=True)
+def hash_password(password):
+    return hashlib.sha256(password.encode()).hexdigest()
 
-# ===========================
-# FUNCIONES
-# ===========================
+# ------------------ USUARIOS ------------------
 
-def hash_password(texto):
-    return hashlib.sha256(texto.encode()).hexdigest()
+if os.path.exists(USERS_FILE):
 
-@st.cache_data
-def cargar_excel(ruta,columnas):
+    usuarios=pd.read_excel(USERS_FILE)
 
-    if os.path.exists(ruta):
-        return pd.read_excel(ruta)
+else:
 
-    return pd.DataFrame(columns=columnas)
+    usuarios=pd.DataFrame([{
+        "usuario":"admin",
+        "password":hash_password("123456"),
+        "rol":"admin"
+    }])
 
-def guardar_excel(df,ruta):
+    usuarios.to_excel(USERS_FILE,index=False)
 
-    df.to_excel(ruta,index=False)
-
-    respaldo()
-
-    st.cache_data.clear()
-
-def respaldo():
-
-    fecha=datetime.now().strftime("%Y%m%d_%H%M%S")
-
-    for archivo in [DATA_FILE,INV_FILE,GASTOS_FILE,USERS_FILE]:
-
-        if os.path.exists(archivo):
-
-            shutil.copy(
-                archivo,
-                os.path.join(
-                    BACKUP,
-                    f"{fecha}_{archivo}"
-                )
-            )
-
-def asegurar_columnas(df,columnas):
-
-    for c,v in columnas.items():
-
-        if c not in df.columns:
-            df[c]=v
-
-    return df
-
-# ===========================
-# IMÁGENES BASE64
-# ===========================
-
-def imagen_base64(upload):
-
-    return base64.b64encode(upload.read()).decode()
-
-def mostrar_base64(texto):
-
-    return base64.b64decode(texto)
-
-# ===========================
-# QR
-# ===========================
-
-def crear_qr(texto):
-
-    qr=qrcode.QRCode(box_size=8,border=2)
-
-    qr.add_data(texto)
-
-    qr.make(fit=True)
-
-    img=qr.make_image(fill_color="black",back_color="white")
-
-    ruta=os.path.join(ASSETS,f"{texto}.png")
-
-    img.save(ruta)
-
-    return ruta
-
-# ===========================
-# PDF
-# ===========================
-
-def crear_pdf(orden):
-
-    ruta=os.path.join(
-        ASSETS,
-        f"Recibo_{orden['ID']}.pdf"
-    )
-
-    doc=SimpleDocTemplate(ruta)
-
-    estilos=getSampleStyleSheet()
-
-    e=[]
-
-    if os.path.exists("logo.png"):
-        e.append(RLImage("logo.png",120,120))
-
-    e.append(
-        Paragraph(
-            "<b>Electronic Tech Service</b>",
-            estilos["Title"]
-        )
-    )
-
-    e.append(
-        Paragraph("Montería - Córdoba",estilos["Normal"])
-    )
-
-    e.append(Spacer(1,12))
-
-    campos=[
-        ("Orden",orden["ID"]),
-        ("Fecha",orden["Fecha"]),
-        ("Cliente",orden["Cliente"]),
-        ("Teléfono",orden["Telefono"]),
-        ("Equipo",orden["Equipo"]),
-        ("Problema",orden["Problema"]),
-        ("Estado",orden["Estado"])
-    ]
-
-    for k,v in campos:
-
-        e.append(
-            Paragraph(
-                f"<b>{k}:</b> {v}",
-                estilos["Normal"]
-            )
-        )
-
-    e.append(
-        Paragraph(
-            f"<b>Total:</b> ${orden['Precio_Estimado']:,.0f}",
-            estilos["Normal"]
-        )
-    )
-
-    qr=crear_qr(f"ETS_{orden['ID']}")
-
-    e.append(Spacer(1,10))
-
-    e.append(RLImage(qr,120,120))
-
-    e.append(Spacer(1,10))
-
-    e.append(
-        Paragraph(
-            "Gracias por confiar en Electronic Tech Service.",
-            estilos["Italic"]
-        )
-    )
-
-    doc.build(e)
-
-    return ruta
-
-# ===========================
-# CARGAR DATOS
-# ===========================
-
-df=cargar_excel(
-DATA_FILE,
-["ID","Fecha","Cliente","Telefono","Equipo",
-"Problema","Precio_Estimado","Estado",
-"Tecnico","Notas","Pagado","Fotos","Firma"]
-)
-
-df=asegurar_columnas(df,{
-"Fotos":"",
-"Firma":"",
-"Pagado":"Pendiente"
-})
-
-inv=cargar_excel(
-INV_FILE,
-["Producto","Cantidad","Precio_Unitario"]
-)
-
-gastos=cargar_excel(
-GASTOS_FILE,
-["Fecha","Descripcion","Monto","Categoria"]
-)
-
-usuarios=cargar_excel(
-USERS_FILE,
-["usuario","password","rol"]
-)
-
-usuarios.columns=[
-str(c).lower().strip()
-for c in usuarios.columns
-]
+usuarios.columns=[str(c).lower().strip() for c in usuarios.columns]
 
 if "contraseña" in usuarios.columns:
     usuarios["password"]=usuarios["contraseña"]
@@ -285,46 +81,42 @@ if "contraseña" in usuarios.columns:
 if "clave" in usuarios.columns:
     usuarios["password"]=usuarios["clave"]
 
-usuarios=asegurar_columnas(usuarios,{
-"usuario":"",
-"password":"",
-"rol":"trabajador"
-})
+for c in ["usuario","password","rol"]:
+    if c not in usuarios.columns:
+        usuarios[c]=""
 
-# Migrar contraseñas antiguas
+# Migración automática
 
-for i,r in usuarios.iterrows():
+for i,row in usuarios.iterrows():
 
-    pwd=str(r["password"])
+    pwd=str(row["password"])
 
     if len(pwd)!=64:
-
         usuarios.loc[i,"password"]=hash_password(pwd)
 
-# Crear admin si no existe
+# Asegurar admin
 
 if usuarios[usuarios["usuario"].str.lower()=="admin"].empty:
 
     usuarios=pd.concat([
         usuarios,
         pd.DataFrame([{
-        "usuario":"admin",
-        "password":hash_password("123456"),
-        "rol":"admin"
+            "usuario":"admin",
+            "password":hash_password("123456"),
+            "rol":"admin"
         }])
     ],ignore_index=True)
 
-guardar_excel(usuarios,USERS_FILE)
+usuarios.to_excel(USERS_FILE,index=False)
 
-# ===========================
-# LOGIN
-# ===========================
+# ------------------ SESSION ------------------
 
 if "logged_in" not in st.session_state:
-
     st.session_state.logged_in=False
     st.session_state.usuario=""
     st.session_state.rol=""
+
+# ------------------ LOGIN ------------------
 
 if not st.session_state.logged_in:
 
@@ -336,83 +128,129 @@ if not st.session_state.logged_in:
             st.image("logo.png",width=260)
 
         st.title("Electronic Tech Service")
+        st.caption("Sistema Profesional de Gestión")
 
-        st.caption("Sistema Profesional")
+        user=st.text_input("Usuario")
+        pwd=st.text_input("Contraseña",type="password")
 
-        usuario=st.text_input("Usuario")
+        if st.button("Entrar",use_container_width=True):
 
-        clave=st.text_input("Contraseña",type="password")
-
-        if st.button("Entrar"):
-
-            b=usuarios[
-                usuarios["usuario"].str.lower()==usuario.lower()
+            buscar=usuarios[
+                usuarios["usuario"].str.lower()==user.lower().strip()
             ]
 
-            if not b.empty:
+            if not buscar.empty:
 
-                d=b.iloc[0]
+                datos=buscar.iloc[0]
 
-                if d["password"]==hash_password(clave):
+                if datos["password"]==hash_password(pwd):
 
                     st.session_state.logged_in=True
-                    st.session_state.usuario=d["usuario"]
-                    st.session_state.rol=d["rol"]
+                    st.session_state.usuario=datos["usuario"]
+                    st.session_state.rol=datos["rol"]
 
+                    st.success("Bienvenido")
                     st.rerun()
 
             st.error("Usuario o contraseña incorrectos")
 
     st.stop()
 
-# ===========================
-# CABECERA
-# ===========================
+# ------------------ CABECERA ------------------
 
-a,b=st.columns([1,5])
+col1,col2=st.columns([1,5])
 
-with a:
-
+with col1:
     if os.path.exists("logo.png"):
-        st.image("logo.png",width=110)
+        st.image("logo.png",width=120)
 
-with b:
-
+with col2:
     st.title("Electronic Tech Service")
-
     st.caption(
-        f"{st.session_state.usuario} | {st.session_state.rol}"
+        f"{st.session_state.usuario} • {st.session_state.rol}"
     )
 
 if st.sidebar.button("Cerrar Sesión"):
-
     st.session_state.logged_in=False
-
     st.rerun()
 
-# ===========================
-# MENÚ
-# ===========================
+# ------------------ BASES ------------------
 
-menu=[
+if os.path.exists(DATA_FILE):
+    df=pd.read_excel(DATA_FILE)
+else:
+    df=pd.DataFrame(columns=[
+        "ID","Fecha","Cliente","Telefono","Equipo",
+        "Problema","Precio_Estimado","Estado",
+        "Tecnico","Notas","Pagado","Fotos","Firma"
+    ])
+
+for c in ["Fotos","Firma"]:
+    if c not in df.columns:
+        df[c]=""
+
+if os.path.exists(INV_FILE):
+    inv=pd.read_excel(INV_FILE)
+else:
+    inv=pd.DataFrame(columns=[
+        "Producto","Cantidad","Precio_Unitario"
+    ])
+
+if os.path.exists(GASTOS_FILE):
+    gastos=pd.read_excel(GASTOS_FILE)
+else:
+    gastos=pd.DataFrame(columns=[
+        "Fecha","Descripcion","Monto","Categoria"
+    ])
+    menu=[
 "🏠 Inicio",
 "📋 Nueva Reparación",
 "📋 Ver Órdenes",
 "🔍 Buscar",
 "📄 Cotizaciones",
-"🖨️ Recibos",
-"📍 Taller",
-"📤 Exportar"
+"🖨️ Recibos"
 ]
 
 if st.session_state.rol=="admin":
 
-    menu.extend([
-    "📦 Inventario",
-    "📊 Contabilidad",
-    "💸 Gastos",
-    "📅 Corte Mensual",
-    "👥 Usuarios"
-    ])
+    menu+=["📦 Inventario",
+           "📊 Contabilidad",
+           "💸 Gastos",
+           "📅 Corte Mensual",
+           "👥 Usuarios"]
 
 opcion=st.sidebar.selectbox("Menú",menu)
+if opcion=="🏠 Inicio":
+
+    col1,col2,col3,col4=st.columns(4)
+
+    col1.metric("Órdenes",len(df))
+
+    pendientes=len(df[df["Estado"]!="Entregado"])
+
+    col2.metric("Pendientes",pendientes)
+
+    entregados=len(df[df["Estado"]=="Entregado"])
+
+    col3.metric("Entregados",entregados)
+
+    total=df["Precio_Estimado"].sum()
+
+    col4.metric("Ingresos estimados",f"${total:,.0f}")
+
+    st.markdown("---")
+
+    st.subheader("Actividad reciente")
+
+    if not df.empty:
+
+        st.dataframe(
+            df.tail(5),
+            use_container_width=True,
+            hide_index=True
+        )
+
+    else:
+
+        st.info("Todavía no hay órdenes.")
+        
