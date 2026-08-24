@@ -1,7 +1,8 @@
 streamlit
 pandas
 openpyxl
-qrcode
 Pillow
+qrcode
 reportlab
 streamlit-drawable-canvas
+matplotlib
