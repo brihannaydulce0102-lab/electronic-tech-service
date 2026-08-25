@@ -309,37 +309,38 @@ guardar_excel(usuarios,USERS_FILE)
 # LOGIN
 # ===========================
 
-# Cargar usuarios
-usuarios = pd.read_excel("usuarios.xlsx")
+# ================= LOGIN =================
 
-# Crear credenciales
-credentials = {"usernames": {}}
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+    st.session_state.usuario = ""
+    st.session_state.rol = ""
 
-for _, fila in usuarios.iterrows():
-    credentials["usernames"][fila["usuario"]] = {
-        "email": "",
-        "name": fila["usuario"],
-        "password": fila["password"]
-    }
+if not st.session_state.logged_in:
 
-# Cookie de sesión (30 días)
-authenticator = stauth.Authenticate(
-    credentials,
-    "electronic_tech_service",
-    "cambia_esta_clave_por_una_larga_y_secreta",
-    cookie_expiry_days=30
-)
+    usuario = st.text_input("Usuario")
+    password = st.text_input("Contraseña", type="password")
 
-authenticator.login(location="main")
+    if st.button("Entrar"):
 
-if st.session_state.get("authentication_status"):
-    st.sidebar.success(f"👤 {st.session_state['name']}")
-    authenticator.logout("Cerrar sesión", "sidebar")
-elif st.session_state.get("authentication_status") is False:
-    st.error("Usuario o contraseña incorrectos")
-    st.stop()
-else:
-    st.warning("Ingresa tus datos")
+        usuario_busqueda = usuarios[
+            usuarios["usuario"].astype(str).str.lower() == usuario.strip().lower()
+        ]
+
+        if not usuario_busqueda.empty:
+
+            datos = usuario_busqueda.iloc[0]
+
+            if str(datos["password"]) == password.strip():
+
+                st.session_state.logged_in = True
+                st.session_state.usuario = datos["usuario"]
+                st.session_state.rol = datos["rol"]
+
+                st.rerun()
+
+        st.error("Usuario o contraseña incorrectos")
+
     st.stop()
 
 # ===========================
