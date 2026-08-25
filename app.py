@@ -1,4 +1,4 @@
-import streamlit as st
+import streamlit_authenticator as stauth
 import pandas as pd
 import os
 import hashlib
@@ -320,49 +320,37 @@ guardar_excel(usuarios,USERS_FILE)
 # LOGIN
 # ===========================
 
-if "logged_in" not in st.session_state:
+# Cargar usuarios
+usuarios = pd.read_excel("usuarios.xlsx")
 
-    st.session_state.logged_in=False
-    st.session_state.usuario=""
-    st.session_state.rol=""
+# Crear credenciales
+credentials = {"usernames": {}}
 
-if not st.session_state.logged_in:
+for _, fila in usuarios.iterrows():
+    credentials["usernames"][fila["usuario"]] = {
+        "email": "",
+        "name": fila["usuario"],
+        "password": fila["password"]
+    }
 
-    c1,c2,c3=st.columns([1,2,1])
+# Cookie de sesión (30 días)
+authenticator = stauth.Authenticate(
+    credentials,
+    "electronic_tech_service",
+    "cambia_esta_clave_por_una_larga_y_secreta",
+    cookie_expiry_days=30
+)
 
-    with c2:
+authenticator.login(location="main")
 
-        if os.path.exists("logo.png"):
-            st.image("logo.png",width=260)
-
-        st.title("Electronic Tech Service")
-
-        st.caption("Sistema Profesional")
-
-        usuario=st.text_input("Usuario")
-
-        clave=st.text_input("Contraseña",type="password")
-
-        if st.button("Entrar"):
-
-            b=usuarios[
-                usuarios["usuario"].str.lower()==usuario.lower()
-            ]
-
-            if not b.empty:
-
-                d=b.iloc[0]
-
-                if d["password"]==hash_password(clave):
-
-                    st.session_state.logged_in=True
-                    st.session_state.usuario=d["usuario"]
-                    st.session_state.rol=d["rol"]
-
-                    st.rerun()
-
-            st.error("Usuario o contraseña incorrectos")
-
+if st.session_state.get("authentication_status"):
+    st.sidebar.success(f"👤 {st.session_state['name']}")
+    authenticator.logout("Cerrar sesión", "sidebar")
+elif st.session_state.get("authentication_status") is False:
+    st.error("Usuario o contraseña incorrectos")
+    st.stop()
+else:
+    st.warning("Ingresa tus datos")
     st.stop()
 
 # ===========================
