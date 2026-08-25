@@ -6,3 +6,5 @@ qrcode
 reportlab
 streamlit-drawable-canvas
 matplotlib
+streamlit-authenticator
+bcrypt
