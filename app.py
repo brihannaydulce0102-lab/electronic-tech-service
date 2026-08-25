@@ -19,6 +19,10 @@ from reportlab.platypus import (
     Spacer,
     Image as RLImage
 )
+
+from reportlab.lib.styles import getSampleStyleSheet
+
+
 st.set_page_config(
     page_title="Electronic Tech Service",
     page_icon="logo.png",
@@ -317,34 +321,47 @@ guardar_excel(usuarios,USERS_FILE)
 # ===========================
 
 if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-    st.session_state.usuario = ""
-    st.session_state.rol = ""
+
+    st.session_state.logged_in=False
+    st.session_state.usuario=""
+    st.session_state.rol=""
 
 if not st.session_state.logged_in:
 
-    usuario = st.text_input("Usuario")
-    password = st.text_input("Contraseña", type="password")
+    c1,c2,c3=st.columns([1,2,1])
 
-    if st.button("Entrar"):
+    with c2:
 
-        usuario_busqueda = usuarios[
-            usuarios["usuario"].astype(str).str.lower() == usuario.strip().lower()
-        ]
+        if os.path.exists("logo.png"):
+            st.image("logo.png",width=260)
 
-        if not usuario_busqueda.empty:
+        st.title("Electronic Tech Service")
 
-            datos = usuario_busqueda.iloc[0]
+        st.caption("Sistema Profesional")
 
-            if str(datos["password"]) == password.strip():
+        usuario=st.text_input("Usuario")
 
-                st.session_state.logged_in = True
-                st.session_state.usuario = datos["usuario"]
-                st.session_state.rol = datos["rol"]
+        clave=st.text_input("Contraseña",type="password")
 
-                st.rerun()
+        if st.button("Entrar"):
 
-        st.error("Usuario o contraseña incorrectos")
+            b=usuarios[
+                usuarios["usuario"].str.lower()==usuario.lower()
+            ]
+
+            if not b.empty:
+
+                d=b.iloc[0]
+
+                if d["password"]==hash_password(clave):
+
+                    st.session_state.logged_in=True
+                    st.session_state.usuario=d["usuario"]
+                    st.session_state.rol=d["rol"]
+
+                    st.rerun()
+
+            st.error("Usuario o contraseña incorrectos")
 
     st.stop()
 
@@ -776,8 +793,9 @@ Gracias por preferirnos.
                 "🧾 Descargar Ticket",
                 ticket,
                 file_name=f"Ticket_{orden['ID']}.txt"
-    )
-           # ==========================================================
+            )
+
+# ==========================================================
 # COTIZACIONES
 # ==========================================================
 
@@ -1159,4 +1177,4 @@ text-decoration:none;
 z-index:999;">
 💬
 </a>
-""",unsafe_allow_html=True) 
+""",unsafe_allow_html=True)
