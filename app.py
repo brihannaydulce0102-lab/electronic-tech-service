@@ -1,3 +1,4 @@
+import streamlit as st
 import streamlit_authenticator as stauth
 import pandas as pd
 import os
@@ -10,18 +11,6 @@ from io import BytesIO
 from datetime import datetime
 from PIL import Image
 import matplotlib.pyplot as plt
-
-from streamlit_drawable_canvas import st_canvas
-
-from reportlab.platypus import (
-    SimpleDocTemplate,
-    Paragraph,
-    Spacer,
-    Image as RLImage
-)
-
-from reportlab.lib.styles import getSampleStyleSheet
-
 
 st.set_page_config(
     page_title="Electronic Tech Service",
