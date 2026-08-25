@@ -316,8 +316,6 @@ guardar_excel(usuarios,USERS_FILE)
 # LOGIN
 # ===========================
 
-# ================= LOGIN =================
-
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
     st.session_state.usuario = ""
