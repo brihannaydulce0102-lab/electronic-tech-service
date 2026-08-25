@@ -11,6 +11,14 @@ from datetime import datetime
 from PIL import Image
 import matplotlib.pyplot as plt
 
+from streamlit_drawable_canvas import st_canvas
+
+from reportlab.platypus import (
+    SimpleDocTemplate,
+    Paragraph,
+    Spacer,
+    Image as RLImage
+)
 st.set_page_config(
     page_title="Electronic Tech Service",
     page_icon="logo.png",
