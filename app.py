@@ -10,6 +10,7 @@ from io import BytesIO
 from datetime import datetime
 from PIL import Image
 import matplotlib.pyplot as plt
+from database import conectar
 
 from streamlit_drawable_canvas import st_canvas
 
