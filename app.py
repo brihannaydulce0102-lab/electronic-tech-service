@@ -245,6 +245,20 @@ def crear_pdf(orden):
 # ===========================
 # CARGAR DATOS
 # ===========================
+
+df = pd.read_excel(
+    DATA_FILE,
+    dtype={
+        "Cliente": str,
+        "Telefono": str,
+        "Equipo": str,
+        "Problema": str,
+        "Tecnico": str,
+        "Notas": str,
+        "Pagado": str
+    }
+)
+
 columnas_texto = [
     "Cliente", "Telefono", "Equipo",
     "Problema", "Tecnico", "Notas", "Pagado"
