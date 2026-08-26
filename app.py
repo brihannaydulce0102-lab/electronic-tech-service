@@ -246,11 +246,17 @@ def crear_pdf(orden):
 # CARGAR DATOS
 # ===========================
 
-df=cargar_excel(
-DATA_FILE,
-["ID","Fecha","Cliente","Telefono","Equipo",
-"Problema","Precio_Estimado","Estado",
-"Tecnico","Notas","Pagado","Fotos","Firma"]
+df = pd.read_excel(
+    DATA_FILE,
+    dtype={
+        "Cliente": str,
+        "Telefono": str,
+        "Equipo": str,
+        "Problema": str,
+        "Tecnico": str,
+        "Notas": str,
+        "Pagado": str
+    }
 )
 
 df=asegurar_columnas(df,{
