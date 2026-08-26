@@ -1,0 +1,61 @@
+import sqlite3
+
+DB = "database.db"
+
+def conectar():
+    return sqlite3.connect(DB, check_same_thread=False)
+
+def crear_tablas():
+    conn = conectar()
+    cur = conn.cursor()
+
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS usuarios(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        usuario TEXT UNIQUE,
+        password TEXT,
+        rol TEXT
+    )
+    """)
+
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS ordenes(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        fecha TEXT,
+        cliente TEXT,
+        telefono TEXT,
+        equipo TEXT,
+        problema TEXT,
+        precio REAL,
+        estado TEXT,
+        tecnico TEXT,
+        notas TEXT,
+        pagado TEXT,
+        fotos TEXT,
+        firma TEXT
+    )
+    """)
+
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS inventario(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        producto TEXT,
+        cantidad INTEGER,
+        precio REAL
+    )
+    """)
+
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS gastos(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        fecha TEXT,
+        descripcion TEXT,
+        monto REAL,
+        categoria TEXT
+    )
+    """)
+
+    conn.commit()
+    conn.close()
+
+crear_tablas()
