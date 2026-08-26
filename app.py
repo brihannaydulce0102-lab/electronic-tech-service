@@ -245,19 +245,14 @@ def crear_pdf(orden):
 # ===========================
 # CARGAR DATOS
 # ===========================
+columnas_texto = [
+    "Cliente", "Telefono", "Equipo",
+    "Problema", "Tecnico", "Notas", "Pagado"
+]
 
-df = pd.read_excel(
-    DATA_FILE,
-    dtype={
-        "Cliente": str,
-        "Telefono": str,
-        "Equipo": str,
-        "Problema": str,
-        "Tecnico": str,
-        "Notas": str,
-        "Pagado": str
-    }
-)
+for col in columnas_texto:
+    if col in df.columns:
+        df[col] = df[col].fillna("").astype(str)
 
 df=asegurar_columnas(df,{
 "Fotos":"",
