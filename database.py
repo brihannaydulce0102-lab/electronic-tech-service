@@ -239,3 +239,22 @@ def reparar_contraseñas():
 # Quita el comentario de la siguiente línea, guarda, ejecuta la app una vez,
 # y luego vuelve a comentarla.
 reparar_contraseñas()
+
+# ===== FORZAR ADMIN (ejecutar solo una vez) =====
+def forzar_admin():
+    with get_connection() as conn:
+        cur = conn.cursor()
+        
+        # Borrar admin si existe
+        cur.execute("DELETE FROM usuarios WHERE LOWER(usuario) = 'admin'")
+        
+        # Crear admin limpio
+        cur.execute(
+            "INSERT INTO usuarios (usuario, password, rol) VALUES (?, ?, ?)",
+            ("admin", hash_password("123456"), "admin")
+        )
+        
+        print("✅ Admin recreado: usuario = admin | contraseña = 123456")
+
+# Quita el # de la siguiente línea, guarda, abre la app UNA vez, y luego vuelve a poner el #
+forzar_admin()
