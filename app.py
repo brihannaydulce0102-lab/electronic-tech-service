@@ -173,7 +173,6 @@ with b:
 if st.sidebar.button("Cerrar Sesión"):
     st.session_state.logged_in = False
     st.rerun()
-)
 
 # ===========================
 # MENÚ (se mantiene aunque des F5)
