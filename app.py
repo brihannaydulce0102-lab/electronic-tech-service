@@ -624,26 +624,120 @@ elif opcion == "📄 Cotizaciones":
     st.markdown(f"### **Total a cotizar: ${total:,.0f}**")
 
     if st.button("Generar Cotización", type="primary"):
-        # Generar el HTML de la cotización
         logo_html = ""
         if os.path.exists("logo.png"):
-            import base64
             with open("logo.png", "rb") as f:
                 logo_b64 = base64.b64encode(f.read()).decode()
-            logo_html = f'<img src="data:image/png;base64,{logo_b64}" style="width:120px; margin-bottom:10px;">'
+            logo_html = f'<img src="data:image/png;base64,{logo_b64}" width="120" style="margin-bottom:10px;">'
 
         audio_texto = "Sí" if incluye_audio else "No"
+        fecha_str = fecha_cot.strftime("%d/%m/%Y")
 
+        # Usamos comillas simples en los atributos HTML para evitar errores de sintaxis
         cotizacion_html = f"""
-        <div style="
-            background: white;
-            color: #111;
-            padding: 35px;
-            border-radius: 12px;
-            font-family: Arial, sans-serif;
-            max-width: 800px;
-            margin: auto;
-            box-shadow: 0 4px 15px rgba(0,0,0
+        <div style='background:white; color:#111; padding:35px; border-radius:12px; font-family:Arial,sans-serif; max-width:800px; margin:auto; box-shadow:0 4px 15px rgba(0,0,0,0.1);'>
+            
+            <div style='text-align:center; border-bottom:3px solid #00E5FF; padding-bottom:15px; margin-bottom:20px;'>
+                {logo_html}
+                <h1 style='margin:5px 0; color:#05051b; font-size:26px;'>Electronic Tech Service</h1>
+                <p style='margin:2px 0; color:#555; font-size:14px;'>
+                    📍 Barrio El Mundo López - Montería, Córdoba<br>
+                    📞 WhatsApp: 301 487 4740
+                </p>
+            </div>
+
+            <h2 style='text-align:center; color:#05051b; margin:20px 0 10px 0;'>
+                COTIZACIÓN DE SISTEMA DE CÁMARAS DE SEGURIDAD
+            </h2>
+            <p style='text-align:center; color:#666; font-size:13px; margin-bottom:25px;'>
+                Fecha: {fecha_str} &nbsp;|&nbsp; Válida por {validez} días
+            </p>
+
+            <table style='width:100%; border-collapse:collapse; margin-bottom:25px; font-size:14px;'>
+                <tr>
+                    <td style='padding:6px 0; width:50%;'><b>Cliente:</b> {cliente or "________________"}</td>
+                    <td style='padding:6px 0;'><b>Teléfono:</b> {telefono or "________________"}</td>
+                </tr>
+                <tr>
+                    <td style='padding:6px 0;' colspan='2'><b>Dirección:</b> {direccion_cliente or "________________"}</td>
+                </tr>
+            </table>
+
+            <h3 style='color:#05051b; border-bottom:1px solid #ddd; padding-bottom:5px;'>Detalle del sistema</h3>
+            <table style='width:100%; border-collapse:collapse; margin-bottom:20px; font-size:14px;'>
+                <tr style='background:#f5f5f5;'>
+                    <td style='padding:8px; border:1px solid #ddd;'><b>Tipo de cámara</b></td>
+                    <td style='padding:8px; border:1px solid #ddd;'>{tipo_camara}</td>
+                    <td style='padding:8px; border:1px solid #ddd;'><b>Cantidad</b></td>
+                    <td style='padding:8px; border:1px solid #ddd;'>{cantidad_camaras}</td>
+                </tr>
+                <tr>
+                    <td style='padding:8px; border:1px solid #ddd;'><b>Resolución</b></td>
+                    <td style='padding:8px; border:1px solid #ddd;'>{resolucion}</td>
+                    <td style='padding:8px; border:1px solid #ddd;'><b>Audio</b></td>
+                    <td style='padding:8px; border:1px solid #ddd;'>{audio_texto}</td>
+                </tr>
+                <tr style='background:#f5f5f5;'>
+                    <td style='padding:8px; border:1px solid #ddd;'><b>Grabador</b></td>
+                    <td style='padding:8px; border:1px solid #ddd;'>{dvr_nvr}</td>
+                    <td style='padding:8px; border:1px solid #ddd;'><b>Almacenamiento</b></td>
+                    <td style='padding:8px; border:1px solid #ddd;'>{discos} TB</td>
+                </tr>
+            </table>
+
+            <h3 style='color:#05051b; border-bottom:1px solid #ddd; padding-bottom:5px;'>Descripción del servicio</h3>
+            <p style='font-size:14px; line-height:1.5; margin-bottom:25px;'>{descripcion}</p>
+
+            <h3 style='color:#05051b; border-bottom:1px solid #ddd; padding-bottom:5px;'>Desglose de costos</h3>
+            <table style='width:100%; border-collapse:collapse; margin-bottom:15px; font-size:14px;'>
+                <tr style='background:#f5f5f5;'>
+                    <td style='padding:8px; border:1px solid #ddd;'>Cámaras</td>
+                    <td style='padding:8px; border:1px solid #ddd; text-align:right;'>${precio_camaras:,.0f}</td>
+                </tr>
+                <tr>
+                    <td style='padding:8px; border:1px solid #ddd;'>Grabador + Disco</td>
+                    <td style='padding:8px; border:1px solid #ddd; text-align:right;'>${precio_grabador:,.0f}</td>
+                </tr>
+                <tr style='background:#f5f5f5;'>
+                    <td style='padding:8px; border:1px solid #ddd;'>Cableado y accesorios</td>
+                    <td style='padding:8px; border:1px solid #ddd; text-align:right;'>${precio_cableado:,.0f}</td>
+                </tr>
+                <tr>
+                    <td style='padding:8px; border:1px solid #ddd;'>Mano de obra / Instalación</td>
+                    <td style='padding:8px; border:1px solid #ddd; text-align:right;'>${precio_mano_obra:,.0f}</td>
+                </tr>
+                <tr style='background:#f5f5f5;'>
+                    <td style='padding:8px; border:1px solid #ddd;'>Otros</td>
+                    <td style='padding:8px; border:1px solid #ddd; text-align:right;'>${otros:,.0f}</td>
+                </tr>
+                <tr>
+                    <td style='padding:8px; border:1px solid #ddd;'>Descuento</td>
+                    <td style='padding:8px; border:1px solid #ddd; text-align:right; color:#c00;'>-${descuento:,.0f}</td>
+                </tr>
+                <tr style='background:#05051b; color:white; font-weight:bold; font-size:16px;'>
+                    <td style='padding:12px; border:1px solid #05051b;'>TOTAL</td>
+                    <td style='padding:12px; border:1px solid #05051b; text-align:right;'>${total:,.0f}</td>
+                </tr>
+            </table>
+
+            <p style='font-size:13px; color:#555; margin-top:10px;'>
+                <b>Forma de pago:</b> {forma_pago}
+            </p>
+
+            <div style='margin-top:35px; padding-top:15px; border-top:2px solid #eee; text-align:center; font-size:12px; color:#777;'>
+                <p style='margin:4px 0;'>Esta cotización es válida por {validez} días a partir de la fecha de emisión.</p>
+                <p style='margin:4px 0;'>Incluye configuración de acceso remoto y capacitación básica.</p>
+                <p style='margin:8px 0 0 0; font-weight:bold; color:#05051b;'>
+                    Electronic Tech Service — Montería, Córdoba<br>
+                    WhatsApp: 301 487 4740
+                </p>
+            </div>
+        </div>
+        """
+
+        st.markdown(cotizacion_html, unsafe_allow_html=True)
+        st.success("Cotización generada correctamente.")
+        st.balloons()
 
 # ==========================================================
 # INVENTARIO
