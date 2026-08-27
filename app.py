@@ -173,9 +173,10 @@ with b:
 if st.sidebar.button("Cerrar Sesión"):
     st.session_state.logged_in = False
     st.rerun()
+)
 
 # ===========================
-# MENÚ
+# MENÚ (se mantiene aunque des F5)
 # ===========================
 menu = [
     "🏠 Inicio",
@@ -197,8 +198,47 @@ if st.session_state.rol == "admin":
         "👥 Usuarios"
     ])
 
-opcion = st.sidebar.selectbox("Menú", menu)
+# Claves limpias para la URL (sin emojis)
+menu_keys = {
+    "🏠 Inicio": "inicio",
+    "📋 Nueva Reparación": "nueva",
+    "📋 Ver Órdenes": "ordenes",
+    "🔍 Buscar": "buscar",
+    "📄 Cotizaciones": "cotizaciones",
+    "🖨️ Recibos": "recibos",
+    "📍 Taller": "taller",
+    "📤 Exportar": "exportar",
+    "📦 Inventario": "inventario",
+    "📊 Contabilidad": "contabilidad",
+    "💸 Gastos": "gastos",
+    "📅 Corte Mensual": "corte",
+    "👥 Usuarios": "usuarios"
+}
 
+# Invertir el diccionario para poder buscar al revés
+keys_to_menu = {v: k for k, v in menu_keys.items()}
+
+# Leer la sección desde la URL (si existe)
+params = st.query_params
+seccion_url = params.get("page", "inicio")
+
+# Si la sección de la URL es válida, usarla
+if seccion_url in keys_to_menu and keys_to_menu[seccion_url] in menu:
+    seccion_actual = keys_to_menu[seccion_url]
+else:
+    seccion_actual = "🏠 Inicio"
+
+# Selectbox del menú
+opcion = st.sidebar.selectbox(
+    "Menú",
+    menu,
+    index=menu.index(seccion_actual) if seccion_actual in menu else 0,
+    key="menu_sidebar"
+)
+
+# Guardar la sección elegida en la URL
+clave = menu_keys.get(opcion, "inicio")
+st.query_params["page"] = clave
 # ==========================================================
 # INICIO
 # ==========================================================
