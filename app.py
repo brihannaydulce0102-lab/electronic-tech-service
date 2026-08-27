@@ -308,11 +308,25 @@ elif opcion == "📋 Ver Órdenes":
         st.info("No hay órdenes registradas.")
     else:
         ids = [o["id"] for o in ordenes]
+
+        # Guardar la orden seleccionada en session_state para que no se pierda
+        if "orden_seleccionada" not in st.session_state:
+            st.session_state.orden_seleccionada = ids[0]
+
+        # Si la orden guardada ya no existe, elegir la primera
+        if st.session_state.orden_seleccionada not in ids:
+            st.session_state.orden_seleccionada = ids[0]
+
         id_seleccionado = st.selectbox(
             "Selecciona una orden para ver / editar",
             options=ids,
-            format_func=lambda x: f"#{x} - {next((o['cliente'] for o in ordenes if o['id'] == x), '')}"
+            index=ids.index(st.session_state.orden_seleccionada),
+            format_func=lambda x: f"#{x} - {next((o['cliente'] for o in ordenes if o['id'] == x), '')}",
+            key="select_orden"
         )
+
+        # Actualizar la orden guardada
+        st.session_state.orden_seleccionada = id_seleccionado
 
         orden = obtener_orden(id_seleccionado)
 
@@ -354,8 +368,13 @@ elif opcion == "📋 Ver Órdenes":
                 )
                 st.link_button("📲 WhatsApp", f"https://wa.me/57{telefono}?text={mensaje}")
 
+            # Expander de edición (solo admin)
             if st.session_state.rol == "admin":
-                with st.expander("✏️ Editar Orden completa", expanded=False):
+                # Controlamos si el expander debe estar abierto
+                if "expander_abierto" not in st.session_state:
+                    st.session_state.expander_abierto = False
+
+                with st.expander("✏️ Editar Orden completa", expanded=st.session_state.expander_abierto):
                     with st.form(key=f"form_edit_{orden['id']}"):
                         cliente2 = st.text_input("Cliente", value=orden["cliente"])
                         telefono2 = st.text_input("Teléfono", value=orden["telefono"] or "")
@@ -384,11 +403,13 @@ elif opcion == "📋 Ver Órdenes":
                                 notas=notas2,
                                 pagado=pagado2
                             )
+                            st.session_state.expander_abierto = True  # Mantener abierto después de guardar
                             st.success("Orden actualizada correctamente")
                             st.rerun()
 
                         if eliminar:
                             eliminar_orden(orden["id"])
+                            st.session_state.expander_abierto = False
                             st.success("Orden eliminada")
                             st.rerun()
 
