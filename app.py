@@ -25,9 +25,7 @@ from database import (
 
 st.set_page_config(
     page_title="Electronic Tech Service",
-    page_icon="logo.png",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    page_icon="logo.png"
 )
  
 # ===========================
