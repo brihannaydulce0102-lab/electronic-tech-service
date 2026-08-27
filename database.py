@@ -218,3 +218,24 @@ def eliminar_gasto(id_gasto):
 
 # Crear tablas al importar el módulo
 crear_tablas()
+
+# ===== REPARAR CONTRASEÑAS (ejecutar solo una vez) =====
+def reparar_contraseñas():
+    with get_connection() as conn:
+        cur = conn.cursor()
+        usuarios = cur.execute("SELECT id, usuario FROM usuarios").fetchall()
+        
+        for u in usuarios:
+            # Contraseña nueva = el mismo nombre de usuario
+            # Ejemplo: si el usuario se llama "juan", la contraseña queda "juan"
+            nueva_clave = hash_password(u["usuario"])
+            cur.execute(
+                "UPDATE usuarios SET password = ? WHERE id = ?",
+                (nueva_clave, u["id"])
+            )
+        
+        print("✅ Contraseñas reparadas correctamente")
+
+# Quita el comentario de la siguiente línea, guarda, ejecuta la app una vez,
+# y luego vuelve a comentarla.
+reparar_contraseñas()
