@@ -30,16 +30,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
  
-st.markdown("""
-<style>
-#MainMenu {visibility: hidden;}
-footer {visibility: hidden;}
-.stDeployButton {display: none;}
-[data-testid="stToolbar"] {display: none;}
-.block-container {padding-top: 1rem;}
-</style>
-""", unsafe_allow_html=True)
-
 # ===========================
 # ESTILO
 # ===========================
