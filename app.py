@@ -623,7 +623,7 @@ elif opcion == "📄 Cotizaciones":
 
     st.markdown(f"### **Total a cotizar: ${total:,.0f}**")
 
-  if st.button("Generar Cotización", type="primary"):
+    if st.button("Generar Cotización", type="primary"):
         logo_html = ""
         if os.path.exists("logo.png"):
             with open("logo.png", "rb") as f:
@@ -635,7 +635,6 @@ elif opcion == "📄 Cotizaciones":
 
         cotizacion_html = f"""
         <div style="background:white; color:#111; padding:35px; border-radius:12px; font-family:Arial,sans-serif; max-width:800px; margin:auto;">
-            
             <div style="text-align:center; border-bottom:3px solid #00E5FF; padding-bottom:15px; margin-bottom:20px;">
                 {logo_html}
                 <h1 style="margin:5px 0; color:#05051b; font-size:26px;">Electronic Tech Service</h1>
@@ -734,10 +733,8 @@ elif opcion == "📄 Cotizaciones":
         </div>
         """
 
-        # Esta forma es más confiable que st.markdown
         import streamlit.components.v1 as components
         components.html(cotizacion_html, height=1100, scrolling=True)
-
         st.success("Cotización generada correctamente.")
 
 # ==========================================================
