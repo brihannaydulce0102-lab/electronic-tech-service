@@ -1,4 +1,4 @@
-import streamlit as st
+pimport streamlit as st
 import os
 import base64
 import urllib.parse
@@ -186,44 +186,53 @@ if st.sidebar.button("Cerrar Sesión"):
     st.rerun()
 
 # ===========================
-# MENÚ (se mantiene aunque des F5)
+# MENÚ (con botones - mejor para celular)
 # ===========================
-menu = [
-    "🏠 Inicio",
-    "📋 Nueva Reparación",
-    "📋 Ver Órdenes",
-    "🔍 Buscar",
-    "💸 Gastos",
-    "📄 Cotizaciones",
-    "🖨️ Recibos",
-    "📍 Taller",
-    "📤 Exportar"
-]
+st.sidebar.markdown("### Menú")
 
+if st.sidebar.button("🏠 Inicio", use_container_width=True):
+    st.session_state.opcion = "🏠 Inicio"
+
+if st.sidebar.button("📋 Nueva Reparación", use_container_width=True):
+    st.session_state.opcion = "📋 Nueva Reparación"
+
+if st.sidebar.button("📋 Ver Órdenes", use_container_width=True):
+    st.session_state.opcion = "📋 Ver Órdenes"
+
+if st.sidebar.button("🔍 Buscar", use_container_width=True):
+    st.session_state.opcion = "🔍 Buscar"
+
+if st.sidebar.button("📄 Cotizaciones", use_container_width=True):
+    st.session_state.opcion = "📄 Cotizaciones"
+
+if st.sidebar.button("🖨️ Recibos", use_container_width=True):
+    st.session_state.opcion = "🖨️ Recibos"
+
+if st.sidebar.button("📍 Taller", use_container_width=True):
+    st.session_state.opcion = "📍 Taller"
+
+if st.sidebar.button("📤 Exportar", use_container_width=True):
+    st.session_state.opcion = "📤 Exportar"
+
+# Solo para admin
 if st.session_state.rol == "admin":
-    menu.extend([
-        "📦 Inventario",
-        "📊 Contabilidad",
-        "📅 Corte Mensual",
-        "👥 Usuarios"
-    ])
+    st.sidebar.markdown("---")
+    if st.sidebar.button("📦 Inventario", use_container_width=True):
+        st.session_state.opcion = "📦 Inventario"
+    if st.sidebar.button("📊 Contabilidad", use_container_width=True):
+        st.session_state.opcion = "📊 Contabilidad"
+    if st.sidebar.button("💸 Gastos", use_container_width=True):
+        st.session_state.opcion = "💸 Gastos"
+    if st.sidebar.button("📅 Corte Mensual", use_container_width=True):
+        st.session_state.opcion = "📅 Corte Mensual"
+    if st.sidebar.button("👥 Usuarios", use_container_width=True):
+        st.session_state.opcion = "👥 Usuarios"
 
-# Claves limpias para la URL
-menu_keys = {
-    "🏠 Inicio": "inicio",
-    "📋 Nueva Reparación": "nueva",
-    "📋 Ver Órdenes": "ordenes",
-    "🔍 Buscar": "buscar",
-    "📄 Cotizaciones": "cotizaciones",
-    "🖨️ Recibos": "recibos",
-    "📍 Taller": "taller",
-    "📤 Exportar": "exportar",
-    "📦 Inventario": "inventario",
-    "📊 Contabilidad": "contabilidad",
-    "💸 Gastos": "gastos",
-    "📅 Corte Mensual": "corte",
-    "👥 Usuarios": "usuarios"
-}
+# Valor por defecto
+if "opcion" not in st.session_state:
+    st.session_state.opcion = "🏠 Inicio"
+
+opcion = st.session_state.opcion
 
 keys_to_menu = {v: k for k, v in menu_keys.items()}
 
