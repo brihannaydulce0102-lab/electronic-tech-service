@@ -32,7 +32,7 @@ st.set_page_config(
  
 st.markdown("""
 <style>
-/* ===== Ocultar elementos de Streamlit ===== */
+/* Ocultar elementos de Streamlit */
 #MainMenu {visibility: hidden;}
 footer {visibility: hidden;}
 [data-testid="stFooter"] {display: none !important;}
@@ -40,37 +40,15 @@ footer {visibility: hidden;}
 [data-testid="stToolbar"] {display: none !important;}
 [data-testid="stStatusWidget"] {display: none !important;}
 
-/* Ocultar "Gestionar la aplicación" */
-button[kind="header"], 
-[data-testid="baseButton-header"],
-div[data-testid="stDecoration"] {
+/* Intentar ocultar "Gestionar la aplicación" */
+[data-testid="stDecoration"],
+button[kind="header"] {
     display: none !important;
 }
 
-/* ===== Arreglar el sidebar (menú de la app) ===== */
-[data-testid="stSidebar"] {
-    min-width: 250px !important;
-    max-width: 300px !important;
-    width: 280px !important;
-    transform: none !important;
-    visibility: visible !important;
-}
-
-[data-testid="stSidebar"] * {
-    writing-mode: horizontal-tb !important;
-    text-orientation: mixed !important;
-}
-
-/* Ajuste general */
+/* Ajuste de espacio superior */
 .block-container {
     padding-top: 1rem;
-    padding-bottom: 2rem;
-}
-
-/* Quitar barra superior innecesaria */
-[data-testid="stHeader"] {
-    background: transparent;
-    height: 0px;
 }
 </style>
 """, unsafe_allow_html=True)
