@@ -571,31 +571,79 @@ Gracias por preferirnos.
 # COTIZACIONES
 # ==========================================================
 elif opcion == "📄 Cotizaciones":
-    st.subheader("Nueva Cotización")
+    st.subheader("Nueva Cotización - Cámaras de Seguridad")
 
+    st.markdown("### Datos del cliente")
     c1, c2 = st.columns(2)
     with c1:
-        cliente = st.text_input("Cliente", key="cot_cliente")
-        telefono = st.text_input("Teléfono", key="cot_tel")
-        equipo = st.text_input("Equipo", key="cot_equipo")
+        cliente = st.text_input("Cliente / Empresa", key="cot_cliente")
+        telefono = st.text_input("Teléfono del cliente", key="cot_tel")
+        direccion_cliente = st.text_input("Dirección del cliente", key="cot_dir")
     with c2:
-        descripcion = st.text_area("Descripción", key="cot_desc")
-        precio = st.number_input("Precio", min_value=0, step=1000, key="cot_precio")
+        fecha_cot = st.date_input("Fecha de cotización", value=datetime.now())
+        validez = st.number_input("Validez de la cotización (días)", min_value=1, value=15, key="cot_validez")
+        forma_pago = st.selectbox("Forma de pago", ["Efectivo", "Transferencia", "50% anticipo - 50% entrega", "Otro"], key="cot_pago")
 
-    if st.button("Generar Cotización"):
-        st.markdown(f"""
-        <div style="background:white;color:black;padding:25px;border-radius:12px">
-        <h2 style="text-align:center;">Electronic Tech Service</h2>
-        <hr>
-        <b>Cliente:</b> {cliente}<br>
-        <b>Teléfono:</b> {telefono}<br>
-        <b>Equipo:</b> {equipo}<br>
-        <b>Descripción:</b> {descripcion}<br><br>
-        <h3 style="text-align:right;">Total: ${precio:,.0f}</h3>
-        <hr>
-        Montería - Córdoba
-        </div>
-        """, unsafe_allow_html=True)
+    st.markdown("### Detalle del servicio")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        tipo_camara = st.selectbox("Tipo de cámara", ["IP (Red)", "Analógica HD", "WiFi", "PTZ", "Otra"], key="cot_tipo")
+        cantidad_camaras = st.number_input("Cantidad de cámaras", min_value=1, value=4, key="cot_cant")
+    with col2:
+        resolucion = st.selectbox("Resolución", ["2MP", "4MP", "5MP", "8MP (4K)", "Otra"], key="cot_res")
+        incluye_audio = st.checkbox("Incluye audio", key="cot_audio")
+    with col3:
+        dvr_nvr = st.selectbox("Grabador", ["NVR", "DVR", "No incluye", "Otro"], key="cot_grabador")
+        discos = st.number_input("Discos duros (TB)", min_value=0, value=1, step=1, key="cot_discos")
+
+    st.markdown("### Descripción del trabajo")
+    descripcion = st.text_area(
+        "Descripción detallada del servicio",
+        value="Instalación de sistema de videovigilancia, configuración de grabación, acceso remoto por celular y capacitación básica al cliente.",
+        key="cot_desc",
+        height=100
+    )
+
+    st.markdown("### Costos")
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        precio_camaras = st.number_input("Cámaras ($)", min_value=0, step=10000, key="cot_p_cam")
+    with c2:
+        precio_grabador = st.number_input("Grabador + Disco ($)", min_value=0, step=10000, key="cot_p_grab")
+    with c3:
+        precio_cableado = st.number_input("Cableado y accesorios ($)", min_value=0, step=10000, key="cot_p_cab")
+    with c4:
+        precio_mano_obra = st.number_input("Mano de obra ($)", min_value=0, step=10000, key="cot_p_mo")
+
+    otros = st.number_input("Otros costos ($)", min_value=0, step=5000, key="cot_otros")
+    descuento = st.number_input("Descuento ($)", min_value=0, step=5000, key="cot_desc_monto")
+
+    subtotal = precio_camaras + precio_grabador + precio_cableado + precio_mano_obra + otros
+    total = subtotal - descuento
+
+    st.markdown(f"### **Total a cotizar: ${total:,.0f}**")
+
+    if st.button("Generar Cotización", type="primary"):
+        # Generar el HTML de la cotización
+        logo_html = ""
+        if os.path.exists("logo.png"):
+            import base64
+            with open("logo.png", "rb") as f:
+                logo_b64 = base64.b64encode(f.read()).decode()
+            logo_html = f'<img src="data:image/png;base64,{logo_b64}" style="width:120px; margin-bottom:10px;">'
+
+        audio_texto = "Sí" if incluye_audio else "No"
+
+        cotizacion_html = f"""
+        <div style="
+            background: white;
+            color: #111;
+            padding: 35px;
+            border-radius: 12px;
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: auto;
+            box-shadow: 0 4px 15px rgba(0,0,0
 
 # ==========================================================
 # INVENTARIO
