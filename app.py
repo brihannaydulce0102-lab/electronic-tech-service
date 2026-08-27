@@ -742,8 +742,10 @@ elif opcion == "📅 Corte Mensual":
             ruta = os.path.join(ARCHIVE, f"corte_{mes}.csv")
             with open(ruta, "w", newline="", encoding="utf-8") as f:
                 writer = csv.writer(f)
-                writer.writerow(["id", "fecha", "cliente", "telefono", "equipo", "problema",
-                                 "precio_estimado", "estado", "tecnico", "notas", "pagado"])
+                writer.writerow([
+                    "id", "fecha", "cliente", "telefono", "equipo", "problema",
+                    "precio_estimado", "estado", "tecnico", "notas", "pagado"
+                ])
                 for o in ordenes:
                     writer.writerow([
                         o["id"], o["fecha"], o["cliente"], o["telefono"], o["equipo"],
@@ -752,6 +754,7 @@ elif opcion == "📅 Corte Mensual":
                     ])
 
             # Vaciar tabla de órdenes
+            from database import get_connection
             with get_connection() as conn:
                 conn.execute("DELETE FROM ordenes")
 
