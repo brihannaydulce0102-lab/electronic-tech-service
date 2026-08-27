@@ -186,7 +186,7 @@ if st.sidebar.button("Cerrar Sesión"):
     st.rerun()
 
 # ===========================
-# MENÚ (con botones - mejor para celular)
+# MENÚ
 # ===========================
 st.sidebar.markdown("### Menú")
 
@@ -214,7 +214,6 @@ if st.sidebar.button("📍 Taller", use_container_width=True):
 if st.sidebar.button("📤 Exportar", use_container_width=True):
     st.session_state.opcion = "📤 Exportar"
 
-# Solo para admin
 if st.session_state.rol == "admin":
     st.sidebar.markdown("---")
     if st.sidebar.button("📦 Inventario", use_container_width=True):
@@ -228,43 +227,10 @@ if st.session_state.rol == "admin":
     if st.sidebar.button("👥 Usuarios", use_container_width=True):
         st.session_state.opcion = "👥 Usuarios"
 
-# Valor por defecto
 if "opcion" not in st.session_state:
     st.session_state.opcion = "🏠 Inicio"
 
 opcion = st.session_state.opcion
-
-keys_to_menu = {v: k for k, v in menu_keys.items()}
-
-# Leer la sección desde la URL
-try:
-    params = st.query_params
-    seccion_url = params.get("page", "inicio")
-except Exception:
-    params = st.experimental_get_query_params()
-    seccion_url = params.get("page", ["inicio"])[0]
-
-# Validar la sección
-if seccion_url in keys_to_menu and keys_to_menu[seccion_url] in menu:
-    seccion_actual = keys_to_menu[seccion_url]
-else:
-    seccion_actual = "🏠 Inicio"
-
-# Selectbox del menú
-opcion = st.sidebar.selectbox(
-    "Menú",
-    menu,
-    index=menu.index(seccion_actual) if seccion_actual in menu else 0,
-    key="menu_sidebar"
-)
-
-# Guardar la sección en la URL
-clave = menu_keys.get(opcion, "inicio")
-
-try:
-    st.query_params["page"] = clave
-except Exception:
-    st.experimental_set_query_params(page=clave)
 
 # ==========================================================
 # INICIO
