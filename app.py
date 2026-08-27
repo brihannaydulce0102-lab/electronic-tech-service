@@ -32,24 +32,11 @@ st.set_page_config(
  
 st.markdown("""
 <style>
-/* Ocultar elementos de Streamlit */
 #MainMenu {visibility: hidden;}
 footer {visibility: hidden;}
-[data-testid="stFooter"] {display: none !important;}
-.stDeployButton {display: none !important;}
-[data-testid="stToolbar"] {display: none !important;}
-[data-testid="stStatusWidget"] {display: none !important;}
-
-/* Intentar ocultar "Gestionar la aplicación" */
-[data-testid="stDecoration"],
-button[kind="header"] {
-    display: none !important;
-}
-
-/* Ajuste de espacio superior */
-.block-container {
-    padding-top: 1rem;
-}
+.stDeployButton {display: none;}
+[data-testid="stToolbar"] {display: none;}
+.block-container {padding-top: 1rem;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -206,6 +193,7 @@ menu = [
     "📋 Nueva Reparación",
     "📋 Ver Órdenes",
     "🔍 Buscar",
+    "💸 Gastos",
     "📄 Cotizaciones",
     "🖨️ Recibos",
     "📍 Taller",
@@ -216,7 +204,6 @@ if st.session_state.rol == "admin":
     menu.extend([
         "📦 Inventario",
         "📊 Contabilidad",
-        "💸 Gastos",
         "📅 Corte Mensual",
         "👥 Usuarios"
     ])
