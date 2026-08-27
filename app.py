@@ -29,6 +29,38 @@ st.set_page_config(
     layout="wide"
 )
 
+# Ocultar elementos de la interfaz de Streamlit
+st.markdown("""
+<style>
+/* Ocultar menú de hamburguesa */
+#MainMenu {visibility: hidden;}
+
+/* Ocultar footer "Made with Streamlit" */
+footer {visibility: hidden;}
+
+/* Ocultar header / barra superior */
+header {visibility: hidden;}
+
+/* Ocultar botón de Deploy */
+.stDeployButton {display: none;}
+
+/* Ocultar el botón de Settings (tres puntos) */
+button[title="View app source"] {display: none;}
+button[kind="header"] {display: none;}
+
+/* Ocultar la barra superior completa */
+[data-testid="stHeader"] {display: none;}
+
+/* Ocultar el footer completo */
+[data-testid="stFooter"] {display: none;}
+
+/* Quitar el padding extra de arriba */
+.block-container {
+    padding-top: 1rem;
+}
+</style>
+""", unsafe_allow_html=True)
+
 # ===========================
 # ESTILO
 # ===========================
