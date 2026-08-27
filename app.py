@@ -32,28 +32,45 @@ st.set_page_config(
  
 st.markdown("""
 <style>
-/* Ocultar solo elementos de Streamlit */
+/* ===== Ocultar elementos de Streamlit ===== */
 #MainMenu {visibility: hidden;}
 footer {visibility: hidden;}
-[data-testid="stFooter"] {display: none;}
-.stDeployButton {display: none;}
-[data-testid="stToolbar"] {display: none;}
+[data-testid="stFooter"] {display: none !important;}
+.stDeployButton {display: none !important;}
+[data-testid="stToolbar"] {display: none !important;}
+[data-testid="stStatusWidget"] {display: none !important;}
 
-/* No ocultar completamente el header para que se vea el botón del menú en móvil */
-[data-testid="stHeader"] {
-    background: transparent;
+/* Ocultar "Gestionar la aplicación" */
+button[kind="header"], 
+[data-testid="baseButton-header"],
+div[data-testid="stDecoration"] {
+    display: none !important;
 }
 
-/* Forzar que el sidebar se vea */
+/* ===== Arreglar el sidebar (menú de la app) ===== */
 [data-testid="stSidebar"] {
-    display: block !important;
-    visibility: visible !important;
+    min-width: 250px !important;
+    max-width: 300px !important;
+    width: 280px !important;
     transform: none !important;
+    visibility: visible !important;
 }
 
-/* Ajuste de espacio */
+[data-testid="stSidebar"] * {
+    writing-mode: horizontal-tb !important;
+    text-orientation: mixed !important;
+}
+
+/* Ajuste general */
 .block-container {
     padding-top: 1rem;
+    padding-bottom: 2rem;
+}
+
+/* Quitar barra superior innecesaria */
+[data-testid="stHeader"] {
+    background: transparent;
+    height: 0px;
 }
 </style>
 """, unsafe_allow_html=True)
