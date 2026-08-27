@@ -26,38 +26,34 @@ from database import (
 st.set_page_config(
     page_title="Electronic Tech Service",
     page_icon="logo.png",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
  
-# Ocultar solo la interfaz de Streamlit (sin tocar el menú de la app)
 st.markdown("""
 <style>
-/* Ocultar menú de hamburguesa de Streamlit */
+/* Ocultar solo elementos de Streamlit */
 #MainMenu {visibility: hidden;}
-
-/* Ocultar footer "Made with Streamlit" */
 footer {visibility: hidden;}
 [data-testid="stFooter"] {display: none;}
-
-/* Ocultar barra superior de Streamlit */
-[data-testid="stHeader"] {display: none;}
-
-/* Ocultar botón Deploy */
 .stDeployButton {display: none;}
-
-/* Ocultar botón de "Manage app" / configuración */
-button[kind="header"] {display: none;}
 [data-testid="stToolbar"] {display: none;}
 
-/* Ajustar el espacio superior */
-.block-container {
-    padding-top: 1.5rem;
+/* No ocultar completamente el header para que se vea el botón del menú en móvil */
+[data-testid="stHeader"] {
+    background: transparent;
 }
 
-/* Asegurar que el sidebar (menú de la app) se vea */
+/* Forzar que el sidebar se vea */
 [data-testid="stSidebar"] {
     display: block !important;
     visibility: visible !important;
+    transform: none !important;
+}
+
+/* Ajuste de espacio */
+.block-container {
+    padding-top: 1rem;
 }
 </style>
 """, unsafe_allow_html=True)
