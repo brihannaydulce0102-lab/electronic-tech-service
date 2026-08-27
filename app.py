@@ -174,7 +174,6 @@ if st.sidebar.button("Cerrar Sesión"):
     st.session_state.logged_in = False
     st.rerun()
 )
-
 # ===========================
 # MENÚ (se mantiene aunque des F5)
 # ===========================
@@ -239,6 +238,7 @@ opcion = st.sidebar.selectbox(
 # Guardar la sección elegida en la URL
 clave = menu_keys.get(opcion, "inicio")
 st.query_params["page"] = clave
+
 # ==========================================================
 # INICIO
 # ==========================================================
