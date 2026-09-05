@@ -6,3 +6,4 @@ qrcode
 reportlab
 streamlit-drawable-canvas
 matplotlib
+psycopg2-binary
