@@ -13,14 +13,15 @@ from reportlab.lib.styles import getSampleStyleSheet
 from streamlit_drawable_canvas import st_canvas
 
 from database import (
-    hash_password,
+    hash_password, crear_tablas,
     obtener_ordenes, obtener_orden, crear_orden, actualizar_orden,
     actualizar_estado, eliminar_orden, contar_ordenes, sumar_ingresos,
     contar_por_estado, contar_pendientes,
     obtener_usuarios, obtener_usuario_por_nombre, crear_usuario,
     actualizar_usuario, eliminar_usuario,
-    obtener_inventario, crear_producto, actualizar_producto, eliminar_producto,
-    obtener_gastos, crear_gasto, sumar_gastos, eliminar_gasto
+    obtener_inventario, obtener_producto, crear_producto, actualizar_producto, eliminar_producto,
+    obtener_gastos, crear_gasto, sumar_gastos, eliminar_gasto,
+    crear_venta, obtener_ventas, eliminar_venta, sumar_ventas, contar_ventas
 )
 
 st.set_page_config(
@@ -56,6 +57,16 @@ st.markdown("""
 }
 </style>
 """, unsafe_allow_html=True)
+
+# ===========================
+# INICIALIZAR BASE DE DATOS
+# ===========================
+try:
+    crear_tablas()
+except Exception as e:
+    st.error(f"Error de base de datos: {e}")
+    st.info("Configura DATABASE_URL en Secrets de Streamlit (PostgreSQL persistente: Neon, Supabase, etc.)")
+    st.stop()
 
 # ===========================
 # RUTAS Y CARPETAS
@@ -202,6 +213,9 @@ if st.sidebar.button("📍 Taller", use_container_width=True):
 if st.sidebar.button("📤 Exportar", use_container_width=True):
     st.session_state.opcion = "📤 Exportar"
 
+if st.sidebar.button("🛒 Ventas", use_container_width=True):
+    st.session_state.opcion = "🛒 Ventas"
+
 if st.session_state.rol == "admin":
     st.sidebar.markdown("---")
     if st.sidebar.button("📦 Inventario", use_container_width=True):
@@ -224,16 +238,22 @@ opcion = st.session_state.opcion
 # INICIO
 # ==========================================================
 if opcion == "🏠 Inicio":
-    ingresos = sumar_ingresos()
+    ingresos_reparaciones = sumar_ingresos()
+    ingresos_ventas = sumar_ventas()
+    ingresos = ingresos_reparaciones + ingresos_ventas
     pendientes = contar_pendientes()
     listos = contar_por_estado("Listo")
     total = contar_ordenes()
+    total_ventas = contar_ventas()
 
-    c1, c2, c3, c4 = st.columns(4)
+    c1, c2, c3, c4, c5 = st.columns(5)
     c1.metric("Órdenes", total)
-    c2.metric("Ingresos", f"${ingresos:,.0f}")
-    c3.metric("Pendientes", pendientes)
-    c4.metric("Listos", listos)
+    c2.metric("Ventas productos", total_ventas)
+    c3.metric("Ingresos totales", f"${ingresos:,.0f}")
+    c4.metric("Pendientes", pendientes)
+    c5.metric("Listos", listos)
+
+    st.caption(f"Reparaciones: ${ingresos_reparaciones:,.0f}  |  Ventas productos: ${ingresos_ventas:,.0f}")
 
     st.markdown("---")
     ordenes = obtener_ordenes()
@@ -770,40 +790,71 @@ elif opcion == "📦 Inventario":
 elif opcion == "📊 Contabilidad":
     st.subheader("Contabilidad")
 
-    ingresos = sumar_ingresos()
+    ingresos_reparaciones = sumar_ingresos()
+    ingresos_ventas = sumar_ventas()
+    ingresos = ingresos_reparaciones + ingresos_ventas
     egresos = sumar_gastos()
     utilidad = ingresos - egresos
 
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Ingresos", f"${ingresos:,.0f}")
-    c2.metric("Gastos", f"${egresos:,.0f}")
-    c3.metric("Utilidad", f"${utilidad:,.0f}")
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Ingresos reparaciones", f"${ingresos_reparaciones:,.0f}")
+    c2.metric("Ingresos ventas", f"${ingresos_ventas:,.0f}")
+    c3.metric("Gastos", f"${egresos:,.0f}")
+    c4.metric("Utilidad", f"${utilidad:,.0f}")
 
+    st.markdown(f"### **Ingresos totales: ${ingresos:,.0f}**")
     st.markdown("---")
+
+    from collections import defaultdict
+
+    col_g1, col_g2 = st.columns(2)
+    with col_g1:
+        st.subheader("Ingresos por fuente")
+        fig, ax = plt.subplots()
+        fuentes = ["Reparaciones", "Ventas productos"]
+        valores = [ingresos_reparaciones, ingresos_ventas]
+        ax.bar(fuentes, valores, color=["#00E5FF", "#7C4DFF"])
+        ax.set_ylabel("Pesos ($)")
+        st.pyplot(fig)
+
+    with col_g2:
+        ordenes = obtener_ordenes()
+        if ordenes:
+            st.subheader("Reparaciones por estado")
+            por_estado = defaultdict(float)
+            for o in ordenes:
+                por_estado[o["estado"]] += o["precio_estimado"] or 0
+            if por_estado:
+                fig2, ax2 = plt.subplots()
+                ax2.bar(list(por_estado.keys()), list(por_estado.values()))
+                plt.xticks(rotation=20)
+                st.pyplot(fig2)
 
     ordenes = obtener_ordenes()
     if ordenes:
-        # Gráfico por estado
-        from collections import defaultdict
-        por_estado = defaultdict(float)
-        for o in ordenes:
-            por_estado[o["estado"]] += o["precio_estimado"] or 0
-
-        if por_estado:
-            fig, ax = plt.subplots()
-            ax.bar(list(por_estado.keys()), list(por_estado.values()))
-            st.pyplot(fig)
-
         st.subheader("Equipos más reparados")
         contador = defaultdict(int)
         for o in ordenes:
             contador[o["equipo"]] += 1
         top = sorted(contador.items(), key=lambda x: x[1], reverse=True)[:5]
         if top:
-            fig2, ax2 = plt.subplots()
-            ax2.bar([t[0] for t in top], [t[1] for t in top])
+            fig3, ax3 = plt.subplots()
+            ax3.bar([t[0] for t in top], [t[1] for t in top])
             plt.xticks(rotation=25)
-            st.pyplot(fig2)
+            st.pyplot(fig3)
+
+    ventas = obtener_ventas()
+    if ventas:
+        st.subheader("Productos más vendidos")
+        contador_v = defaultdict(int)
+        for v in ventas:
+            contador_v[v["producto_nombre"]] += v["cantidad"]
+        top_v = sorted(contador_v.items(), key=lambda x: x[1], reverse=True)[:5]
+        if top_v:
+            fig4, ax4 = plt.subplots()
+            ax4.bar([t[0] for t in top_v], [t[1] for t in top_v], color="#7C4DFF")
+            plt.xticks(rotation=25)
+            st.pyplot(fig4)
 
 # ==========================================================
 # GASTOS
@@ -870,7 +921,8 @@ elif opcion == "📅 Corte Mensual":
             # Vaciar tabla de órdenes
             from database import get_connection
             with get_connection() as conn:
-                conn.execute("DELETE FROM ordenes")
+                cur = conn.cursor()
+                cur.execute("DELETE FROM ordenes")
 
             st.success(f"Corte realizado. Archivo guardado en: {ruta}")
             st.rerun()
@@ -932,6 +984,93 @@ elif opcion == "👥 Usuarios":
             else:
                 st.error("Usuario y contraseña son obligatorios.")
 
+
+# ==========================================================
+# VENTAS DE PRODUCTOS
+# ==========================================================
+elif opcion == "🛒 Ventas":
+    st.subheader("🛒 Ventas de Productos")
+
+    tab_vender, tab_historial = st.tabs(["Vender", "Historial de ventas"])
+
+    with tab_vender:
+        productos = obtener_inventario()
+        disponibles = [p for p in productos if (p["cantidad"] or 0) > 0]
+
+        if not disponibles:
+            st.warning("No hay productos con stock. Agrega productos en Inventario (solo admin).")
+        else:
+            opciones = {
+                f"{p['producto']} — Stock: {p['cantidad']} — ${p['precio_unitario']:,.0f}": p
+                for p in disponibles
+            }
+            elegido = st.selectbox("Producto", list(opciones.keys()))
+            prod = opciones[elegido]
+
+            c1, c2 = st.columns(2)
+            with c1:
+                cantidad = st.number_input(
+                    "Cantidad",
+                    min_value=1,
+                    max_value=int(prod["cantidad"]),
+                    value=1,
+                    key="venta_cant"
+                )
+                cliente_v = st.text_input("Cliente (opcional)", key="venta_cliente")
+            with c2:
+                st.metric("Precio unitario", f"${prod['precio_unitario']:,.0f}")
+                st.metric("Total", f"${(prod['precio_unitario'] or 0) * cantidad:,.0f}")
+                notas_v = st.text_input("Notas (opcional)", key="venta_notas")
+
+            if st.button("💰 Registrar venta", type="primary", use_container_width=True):
+                try:
+                    vid = crear_venta(
+                        producto_id=prod["id"],
+                        cantidad=int(cantidad),
+                        cliente=cliente_v,
+                        vendedor=st.session_state.usuario,
+                        notas=notas_v
+                    )
+                    st.success(f"Venta #{vid} registrada. Stock actualizado.")
+                    st.balloons()
+                    st.rerun()
+                except ValueError as e:
+                    st.error(str(e))
+                except Exception as e:
+                    st.error(f"Error al registrar venta: {e}")
+
+    with tab_historial:
+        ventas = obtener_ventas()
+        if not ventas:
+            st.info("Aún no hay ventas registradas.")
+        else:
+            data = [{
+                "ID": v["id"],
+                "Fecha": v["fecha"],
+                "Producto": v["producto_nombre"],
+                "Cant.": v["cantidad"],
+                "P. Unit.": v["precio_unitario"],
+                "Total": v["total"],
+                "Cliente": v["cliente"] or "",
+                "Vendedor": v["vendedor"] or ""
+            } for v in ventas]
+            st.dataframe(data, use_container_width=True, hide_index=True)
+
+            st.markdown(f"**Total vendido: ${sumar_ventas():,.0f}**")
+
+            if st.session_state.rol == "admin":
+                st.markdown("---")
+                st.subheader("Eliminar venta (devuelve stock)")
+                ids_v = [v["id"] for v in ventas]
+                id_del = st.selectbox("ID de venta a eliminar", ids_v, key="del_venta")
+                if st.button("🗑️ Eliminar venta", key="btn_del_venta"):
+                    eliminar_venta(id_del)
+                    st.success("Venta eliminada y stock devuelto.")
+                    st.rerun()
+
+# ==========================================================
+# EXPORTAR
+
 # ==========================================================
 # EXPORTAR
 # ==========================================================
@@ -984,6 +1123,23 @@ elif opcion == "📤 Exportar":
             "Descargar Gastos (CSV)",
             output.getvalue().encode("utf-8"),
             "gastos.csv",
+            "text/csv"
+        )
+
+    ventas = obtener_ventas()
+    if ventas:
+        output = StringIO()
+        writer = csv.writer(output)
+        writer.writerow(["ID", "Fecha", "Producto", "Cantidad", "Precio Unitario", "Total", "Cliente", "Vendedor", "Notas"])
+        for v in ventas:
+            writer.writerow([
+                v["id"], v["fecha"], v["producto_nombre"], v["cantidad"],
+                v["precio_unitario"], v["total"], v["cliente"], v["vendedor"], v["notas"]
+            ])
+        st.download_button(
+            "Descargar Ventas (CSV)",
+            output.getvalue().encode("utf-8"),
+            "ventas.csv",
             "text/csv"
         )
 
