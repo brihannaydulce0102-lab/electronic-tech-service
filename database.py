@@ -5,7 +5,21 @@ from contextlib import contextmanager
 from datetime import datetime
 import hashlib
 
-DATABASE_URL = os.environ.get("DATABASE_URL")
+def _get_database_url():
+    url = os.environ.get("DATABASE_URL")
+    if not url:
+        try:
+            import streamlit as st
+            if "DATABASE_URL" in st.secrets:
+                url = st.secrets["DATABASE_URL"]
+        except Exception:
+            pass
+    if url:
+        # Quita espacios y saltos de línea (útil en celular)
+        url = str(url).strip().replace("\n", "").replace("\r", "").replace(" ", "")
+    return url
+
+DATABASE_URL = _get_database_url()
 
 def hash_password(texto: str) -> str:
     return hashlib.sha256(str(texto).encode()).hexdigest()
