@@ -4,8 +4,10 @@ from psycopg2.extras import RealDictCursor
 from contextlib import contextmanager
 from datetime import datetime
 import hashlib
+import re
 
 def _get_database_url():
+    """Lee DATABASE_URL desde env o Streamlit secrets y limpia saltos de línea."""
     url = os.environ.get("DATABASE_URL")
     if not url:
         try:
@@ -14,9 +16,12 @@ def _get_database_url():
                 url = st.secrets["DATABASE_URL"]
         except Exception:
             pass
-    if url:
-        # Quita espacios y saltos de línea (útil en celular)
-        url = str(url).strip().replace("\n", "").replace("\r", "").replace(" ", "")
+    if not url:
+        return None
+    # Quitar espacios, saltos de línea y caracteres raros del celular
+    url = str(url).strip()
+    url = url.replace("\n", "").replace("\r", "").replace("\t", "")
+    url = re.sub(r"\s+", "", url)  # quita cualquier espacio restante
     return url
 
 DATABASE_URL = _get_database_url()
@@ -26,13 +31,17 @@ def hash_password(texto: str) -> str:
 
 @contextmanager
 def get_connection():
-    if not DATABASE_URL:
+    url = _get_database_url()  # se lee cada vez (por si secrets cargan tarde)
+    if not url:
         raise Exception(
-            "No se encontró DATABASE_URL. Configúrala en Secrets de Streamlit Cloud "
-            "o como variable de entorno."
+            "No se encontró DATABASE_URL. Configúrala en Secrets de Streamlit Cloud."
         )
-    # Compatible con Neon, Supabase, Railway, etc.
-    url = DATABASE_URL
+    # Si todavía tiene el texto de ejemplo "host", avisar claro
+    if "@host/" in url or url.endswith("@host") or "://user:pass@host" in url:
+        raise Exception(
+            "DATABASE_URL tiene un valor de ejemplo (host). "
+            "Pega la URL real de Neon en Secrets, entre comillas."
+        )
     if "sslmode" not in url and url.startswith("postgres"):
         separator = "&" if "?" in url else "?"
         url = f"{url}{separator}sslmode=require"
