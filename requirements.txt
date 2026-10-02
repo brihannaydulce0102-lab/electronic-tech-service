@@ -1,9 +1,6 @@
-streamlit
-pandas
-openpyxl
-Pillow
-qrcode
-reportlab
-streamlit-drawable-canvas
-matplotlib
-psycopg2-binary
+streamlit>=1.39,<2
+psycopg2-binary>=2.9,<3
+Pillow>=10,<13
+qrcode>=7.4,<9
+reportlab>=4,<5
+matplotlib>=3.8,<4
