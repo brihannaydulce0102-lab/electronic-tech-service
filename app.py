@@ -118,8 +118,12 @@ def get_connection():
             conn = psycopg2.connect(
                 url,
                 cursor_factory=RealDictCursor,
-                connect_timeout=15,
+                connect_timeout=10,
                 application_name="electronic-tech-service",
+                keepalives=1,
+                keepalives_idle=30,
+                keepalives_interval=10,
+                keepalives_count=3,
             )
             break
         except psycopg2.OperationalError as exc:
@@ -316,10 +320,29 @@ def obtener_diagnostico_db():
 
 # ==================== ÓRDENES ====================
 
-def obtener_ordenes():
+def obtener_ordenes(incluir_media=False, limite=None):
+    """
+    Lista órdenes sin descargar fotos ni firma por defecto.
+    Esto reduce muchísimo el tráfico con Neon en cada navegación.
+    """
+    columnas = """
+        id, fecha, cliente, telefono, equipo, problema,
+        precio_estimado, estado, tecnico, notas, pagado,
+        eliminado, fecha_eliminacion, eliminado_por
+    """
+    if incluir_media:
+        columnas = "*"
+
+    sql = f"SELECT {columnas} FROM ordenes WHERE eliminado = FALSE ORDER BY id DESC"
+    params = ()
+
+    if limite is not None:
+        sql += " LIMIT %s"
+        params = (max(1, int(limite)),)
+
     with get_connection() as conn:
         cur = conn.cursor()
-        cur.execute("SELECT * FROM ordenes WHERE eliminado = FALSE ORDER BY id DESC")
+        cur.execute(sql, params)
         return cur.fetchall()
 
 
@@ -399,7 +422,15 @@ def restaurar_orden(id_orden):
 def obtener_ordenes_eliminadas():
     with get_connection() as conn:
         cur = conn.cursor()
-        cur.execute("SELECT * FROM ordenes WHERE eliminado = TRUE ORDER BY fecha_eliminacion DESC, id DESC")
+        cur.execute("""
+            SELECT
+                id, fecha, cliente, telefono, equipo, problema,
+                precio_estimado, estado, tecnico, notas, pagado,
+                fecha_eliminacion, eliminado_por
+            FROM ordenes
+            WHERE eliminado = TRUE
+            ORDER BY fecha_eliminacion DESC, id DESC
+        """)
         return cur.fetchall()
 
 
@@ -429,6 +460,138 @@ def contar_pendientes():
         cur = conn.cursor()
         cur.execute("SELECT COUNT(*) AS total FROM ordenes WHERE eliminado = FALSE AND estado != 'Entregado'")
         return cur.fetchone()["total"]
+
+
+def obtener_dashboard():
+    """
+    Obtiene todas las métricas del inicio y las últimas 7 órdenes
+    usando una sola conexión a PostgreSQL.
+    """
+    with get_connection() as conn:
+        cur = conn.cursor()
+
+        cur.execute("""
+            SELECT
+                COUNT(*) FILTER (WHERE eliminado = FALSE) AS total_ordenes,
+                COUNT(*) FILTER (
+                    WHERE eliminado = FALSE AND estado != 'Entregado'
+                ) AS pendientes,
+                COUNT(*) FILTER (
+                    WHERE eliminado = FALSE AND estado = 'Listo'
+                ) AS listos,
+                COALESCE(
+                    SUM(precio_estimado) FILTER (WHERE eliminado = FALSE),
+                    0
+                ) AS ingresos_reparaciones
+            FROM ordenes
+        """)
+        ordenes_stats = cur.fetchone()
+
+        cur.execute("""
+            SELECT
+                COUNT(*) FILTER (WHERE eliminado = FALSE) AS total_ventas,
+                COALESCE(
+                    SUM(total) FILTER (WHERE eliminado = FALSE),
+                    0
+                ) AS ingresos_ventas
+            FROM ventas
+        """)
+        ventas_stats = cur.fetchone()
+
+        cur.execute("""
+            SELECT id, fecha, cliente, equipo, estado, precio_estimado
+            FROM ordenes
+            WHERE eliminado = FALSE
+            ORDER BY id DESC
+            LIMIT 7
+        """)
+        ultimas = cur.fetchall()
+
+        return {
+            "total_ordenes": int(ordenes_stats["total_ordenes"] or 0),
+            "pendientes": int(ordenes_stats["pendientes"] or 0),
+            "listos": int(ordenes_stats["listos"] or 0),
+            "ingresos_reparaciones": float(ordenes_stats["ingresos_reparaciones"] or 0),
+            "total_ventas": int(ventas_stats["total_ventas"] or 0),
+            "ingresos_ventas": float(ventas_stats["ingresos_ventas"] or 0),
+            "ultimas": ultimas,
+        }
+
+
+def buscar_ordenes(texto, limite=100):
+    """
+    Busca directamente en PostgreSQL en vez de descargar todas las órdenes
+    y filtrarlas en Python.
+    """
+    texto = (texto or "").strip()
+    if not texto:
+        return []
+
+    patron = f"%{texto}%"
+    with get_connection() as conn:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT
+                id, fecha, cliente, telefono, equipo,
+                precio_estimado, estado, tecnico, pagado
+            FROM ordenes
+            WHERE eliminado = FALSE
+              AND (
+                    cliente ILIKE %s
+                 OR COALESCE(telefono, '') ILIKE %s
+                 OR equipo ILIKE %s
+                 OR CAST(id AS TEXT) ILIKE %s
+              )
+            ORDER BY id DESC
+            LIMIT %s
+        """, (patron, patron, patron, patron, int(limite)))
+        return cur.fetchall()
+
+
+def obtener_resumen_contabilidad():
+    """
+    Métricas y acumulados por estado con una sola conexión.
+    """
+    with get_connection() as conn:
+        cur = conn.cursor()
+
+        cur.execute("""
+            SELECT
+                COALESCE(SUM(precio_estimado), 0) AS reparaciones
+            FROM ordenes
+            WHERE eliminado = FALSE
+        """)
+        reparaciones = float(cur.fetchone()["reparaciones"] or 0)
+
+        cur.execute("""
+            SELECT COALESCE(SUM(total), 0) AS ventas
+            FROM ventas
+            WHERE eliminado = FALSE
+        """)
+        ventas = float(cur.fetchone()["ventas"] or 0)
+
+        cur.execute("""
+            SELECT COALESCE(SUM(monto), 0) AS gastos
+            FROM gastos
+            WHERE eliminado = FALSE
+        """)
+        gastos = float(cur.fetchone()["gastos"] or 0)
+
+        cur.execute("""
+            SELECT estado, COALESCE(SUM(precio_estimado), 0) AS total
+            FROM ordenes
+            WHERE eliminado = FALSE
+            GROUP BY estado
+            ORDER BY estado
+        """)
+        estados = cur.fetchall()
+
+        return {
+            "reparaciones": reparaciones,
+            "ventas": ventas,
+            "gastos": gastos,
+            "estados": estados,
+        }
 
 
 # ==================== USUARIOS ====================
@@ -921,12 +1084,14 @@ footer { visibility: hidden; }
 # BASE DE DATOS
 # ==========================================================
 
-try:
-    crear_tablas()
-except Exception as e:
-    st.error(f"Error conectando con la base de datos: {e}")
-    st.info("Verifica DATABASE_URL en Secrets de Streamlit.")
-    st.stop()
+if "_db_inicializada" not in st.session_state:
+    try:
+        crear_tablas()
+        st.session_state._db_inicializada = True
+    except Exception as e:
+        st.error(f"Error conectando con la base de datos: {e}")
+        st.info("Verifica DATABASE_URL en Secrets de Streamlit.")
+        st.stop()
 
 ASSETS = "assets"
 os.makedirs(ASSETS, exist_ok=True)
@@ -941,9 +1106,9 @@ def imagen_base64(upload):
     imagen = Image.open(upload)
     if imagen.mode not in ("RGB", "L"):
         imagen = imagen.convert("RGB")
-    imagen.thumbnail((1600, 1600))
+    imagen.thumbnail((1280, 1280))
     buffer = BytesIO()
-    imagen.save(buffer, format="JPEG", quality=82, optimize=True)
+    imagen.save(buffer, format="JPEG", quality=78, optimize=True)
     return base64.b64encode(buffer.getvalue()).decode("utf-8")
 
 
@@ -1114,32 +1279,32 @@ if opcion in OPCIONES_ADMIN and st.session_state.rol != "admin":
 
 if opcion == "🏠 Inicio":
     st.subheader("🏠 Panel principal")
-    ingresos_rep = sumar_ingresos()
-    ingresos_ven = sumar_ventas()
+
+    panel = obtener_dashboard()
+    ingresos_rep = panel["ingresos_reparaciones"]
+    ingresos_ven = panel["ingresos_ventas"]
     ingresos = ingresos_rep + ingresos_ven
-    pendientes = contar_pendientes()
-    listos = contar_por_estado("Listo")
-    total = contar_ordenes()
-    total_ventas = contar_ventas()
 
     c1, c2 = st.columns(2)
-    c1.metric("🔧 Órdenes", total)
-    c2.metric("🛒 Ventas", total_ventas)
+    c1.metric("🔧 Órdenes", panel["total_ordenes"])
+    c2.metric("🛒 Ventas", panel["total_ventas"])
     c3, c4 = st.columns(2)
-    c3.metric("⏳ Pendientes", pendientes)
-    c4.metric("✅ Listos", listos)
+    c3.metric("⏳ Pendientes", panel["pendientes"])
+    c4.metric("✅ Listos", panel["listos"])
     st.metric("💰 Ingresos registrados", f"${ingresos:,.0f}")
     st.caption(f"Reparaciones: ${ingresos_rep:,.0f} • Ventas: ${ingresos_ven:,.0f}")
 
     st.markdown("---")
     st.subheader("Últimas órdenes")
-    ordenes = obtener_ordenes()
-    if ordenes:
-        data = [{
-            "ID": o["id"], "Fecha": o["fecha"], "Cliente": o["cliente"],
-            "Equipo": o["equipo"], "Estado": o["estado"], "Precio": o["precio_estimado"]
-        } for o in ordenes[:7]]
-        st.dataframe(data, use_container_width=True, hide_index=True)
+    if panel["ultimas"]:
+        st.dataframe([{
+            "ID": o["id"],
+            "Fecha": o["fecha"],
+            "Cliente": o["cliente"],
+            "Equipo": o["equipo"],
+            "Estado": o["estado"],
+            "Precio": o["precio_estimado"],
+        } for o in panel["ultimas"]], use_container_width=True, hide_index=True)
     else:
         st.info("Todavía no hay órdenes.")
 
@@ -1168,10 +1333,26 @@ elif opcion == "➕ Nueva Reparación":
     canvas = None
     firma_subida = None
     if HAS_CANVAS:
-        canvas = st_canvas(
-            stroke_width=3, stroke_color="#000000", background_color="#FFFFFF",
-            height=180, width=320, drawing_mode="freedraw", key="firma_canvas"
+        # streamlit-drawable-canvas >= 0.10 hace image_data opcional.
+        # Lo pedimos explícitamente para poder guardar la firma.
+        canvas_kwargs = dict(
+            stroke_width=3,
+            stroke_color="#000000",
+            background_color="#FFFFFF",
+            height=180,
+            width=320,
+            drawing_mode="freedraw",
+            key="firma_canvas",
         )
+        try:
+            canvas = st_canvas(return_image_data=True, **canvas_kwargs)
+        except TypeError as exc:
+            # Compatibilidad con versiones antiguas (0.9.x), donde ese
+            # parámetro todavía no existía y image_data venía habilitado.
+            if "return_image_data" in str(exc):
+                canvas = st_canvas(**canvas_kwargs)
+            else:
+                raise
     else:
         st.info("El componente de firma no está disponible. Puedes subir una firma en imagen o continuar sin firma.")
         firma_subida = st.file_uploader(
@@ -1321,26 +1502,24 @@ elif opcion == "📋 Ver Órdenes":
 elif opcion == "🔍 Buscar":
     st.subheader("🔍 Buscar")
     texto = st.text_input("Cliente, teléfono, equipo o ID")
-    if texto:
-        resultados = []
-        t = texto.strip().lower()
-        ordenes = obtener_ordenes()
-        for o in ordenes:
-            if (
-                t in str(o["cliente"]).lower() or
-                t in str(o["telefono"] or "").lower() or
-                t in str(o["equipo"]).lower() or
-                t in str(o["id"]).lower()
-            ):
-                resultados.append(o)
 
+    if texto.strip():
+        resultados = buscar_ordenes(texto, limite=100)
         st.write(f"{len(resultados)} resultado(s)")
+
         if resultados:
             st.dataframe([{
-                "ID": o["id"], "Fecha": o["fecha"], "Cliente": o["cliente"],
-                "Teléfono": o["telefono"], "Equipo": o["equipo"],
-                "Estado": o["estado"], "Precio": o["precio_estimado"]
+                "ID": o["id"],
+                "Fecha": o["fecha"],
+                "Cliente": o["cliente"],
+                "Teléfono": o["telefono"],
+                "Equipo": o["equipo"],
+                "Estado": o["estado"],
+                "Precio": o["precio_estimado"],
             } for o in resultados], use_container_width=True, hide_index=True)
+
+            if len(resultados) >= 100:
+                st.caption("Se muestran los primeros 100 resultados. Escribe una búsqueda más específica.")
 
 # ==========================================================
 # RECIBOS
@@ -1604,9 +1783,11 @@ elif opcion == "💸 Gastos":
 
 elif opcion == "📊 Contabilidad":
     st.subheader("📊 Contabilidad")
-    rep = sumar_ingresos()
-    ven = sumar_ventas()
-    gastos = sumar_gastos()
+
+    resumen = obtener_resumen_contabilidad()
+    rep = resumen["reparaciones"]
+    ven = resumen["ventas"]
+    gastos = resumen["gastos"]
     ingresos = rep + ven
     utilidad = ingresos - gastos
 
@@ -1624,13 +1805,12 @@ elif opcion == "📊 Contabilidad":
         st.pyplot(fig)
         plt.close(fig)
 
-        ordenes = obtener_ordenes()
-        if ordenes:
-            por_estado = defaultdict(float)
-            for o in ordenes:
-                por_estado[o["estado"]] += float(o["precio_estimado"] or 0)
+        if resumen["estados"]:
             fig2, ax2 = plt.subplots()
-            ax2.bar(list(por_estado.keys()), list(por_estado.values()))
+            ax2.bar(
+                [fila["estado"] for fila in resumen["estados"]],
+                [float(fila["total"] or 0) for fila in resumen["estados"]],
+            )
             plt.xticks(rotation=20)
             st.pyplot(fig2)
             plt.close(fig2)
@@ -1820,7 +2000,7 @@ elif opcion == "📤 Exportar":
 
     respaldo = {
         "fecha_respaldo": datetime.now().isoformat(),
-        "ordenes": [dict(x) for x in obtener_ordenes()],
+        "ordenes": [dict(x) for x in obtener_ordenes(incluir_media=True)],
         "inventario": [dict(x) for x in obtener_inventario()],
         "ventas": [dict(x) for x in obtener_ventas()],
         "gastos": [dict(x) for x in obtener_gastos()],
@@ -1842,7 +2022,7 @@ elif opcion == "📤 Exportar":
 elif opcion == "🛡️ Sistema":
     st.subheader("🛡️ Estado del sistema")
     diagnostico = obtener_diagnostico_db()
-    st.success("✅ Base de datos conectada.")
+    st.success("✅ Base de datos conectada y modo optimizado activo.")
     st.caption("Guarda una captura del ID. Si algún día cambia, la app quedó conectada a otra base.")
     st.code(diagnostico["instalacion_id"])
     st.caption("Este ID pertenece a tu base actual. Si cambia en el futuro, revisa DATABASE_URL antes de guardar datos nuevos.")
