@@ -1,4 +1,5 @@
 import os
+import json
 import re
 import uuid
 import hashlib
@@ -132,6 +133,46 @@ def crear_tablas():
                 eliminado_por TEXT
             )
         """)
+
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS productos_web (
+                id SERIAL PRIMARY KEY,
+                nombre TEXT NOT NULL,
+                categoria TEXT NOT NULL DEFAULT 'Otros',
+                precio REAL NOT NULL DEFAULT 0,
+                precio_consultar BOOLEAN NOT NULL DEFAULT FALSE,
+                descripcion TEXT DEFAULT '',
+                especificaciones TEXT DEFAULT '[]',
+                imagen TEXT DEFAULT '',
+                visible BOOLEAN NOT NULL DEFAULT TRUE,
+                disponible BOOLEAN NOT NULL DEFAULT TRUE,
+                destacado BOOLEAN NOT NULL DEFAULT FALSE,
+                domicilio_gratis BOOLEAN NOT NULL DEFAULT FALSE,
+                orden INTEGER NOT NULL DEFAULT 0,
+                fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_productos_web_visible ON productos_web(visible)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_productos_web_orden ON productos_web(orden, id)")
+
+        defaults_web = {
+            'web_whatsapp': '573014874740',
+            'web_direccion': 'Barrio El Mundo López, Diagonal 17 con Transversal 28',
+            'web_ciudad': 'Montería, Córdoba',
+            'web_horario': 'Lunes a sábado · horario comercial',
+            'web_promocion_titulo': 'Servicio a domicilio gratis',
+            'web_promocion_texto': 'Consulta disponibilidad y cobertura directamente por WhatsApp.',
+            'web_instagram': '',
+            'web_facebook': '',
+            'web_tiktok': '',
+        }
+        for clave_web, valor_web in defaults_web.items():
+            cur.execute(
+                "INSERT INTO configuracion (clave, valor) VALUES (%s, %s) ON CONFLICT (clave) DO NOTHING",
+                (clave_web, valor_web),
+            )
 
         cur.execute("""
             CREATE TABLE IF NOT EXISTS gastos (
@@ -500,6 +541,119 @@ def obtener_productos_eliminados():
         cur = conn.cursor()
         cur.execute("SELECT * FROM inventario WHERE eliminado = TRUE ORDER BY fecha_eliminacion DESC, id DESC")
         return cur.fetchall()
+
+
+
+
+# ==================== PÁGINA WEB ====================
+
+def obtener_productos_web(incluir_ocultos=True):
+    with get_connection() as conn:
+        cur = conn.cursor()
+        if incluir_ocultos:
+            cur.execute("SELECT * FROM productos_web ORDER BY orden, id")
+        else:
+            cur.execute("SELECT * FROM productos_web WHERE visible = TRUE ORDER BY destacado DESC, orden, id")
+        return cur.fetchall()
+
+
+def obtener_producto_web(id_producto):
+    with get_connection() as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM productos_web WHERE id = %s", (id_producto,))
+        return cur.fetchone()
+
+
+def crear_producto_web(nombre, categoria='Otros', precio=0, precio_consultar=False,
+                       descripcion='', especificaciones='[]', imagen='', visible=True,
+                       disponible=True, destacado=False, domicilio_gratis=False, orden=0):
+    with get_connection() as conn:
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO productos_web
+            (nombre, categoria, precio, precio_consultar, descripcion, especificaciones,
+             imagen, visible, disponible, destacado, domicilio_gratis, orden, fecha_actualizacion)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,CURRENT_TIMESTAMP)
+            RETURNING id
+        """, (
+            nombre.strip(), categoria or 'Otros', float(precio or 0), bool(precio_consultar),
+            descripcion or '', especificaciones or '[]', imagen or '', bool(visible),
+            bool(disponible), bool(destacado), bool(domicilio_gratis), int(orden or 0),
+        ))
+        return cur.fetchone()['id']
+
+
+def actualizar_producto_web(id_producto, **campos):
+    permitidos = {
+        'nombre','categoria','precio','precio_consultar','descripcion','especificaciones',
+        'imagen','visible','disponible','destacado','domicilio_gratis','orden'
+    }
+    campos = {k:v for k,v in campos.items() if k in permitidos}
+    if not campos:
+        return
+    campos['fecha_actualizacion'] = datetime.now()
+    sets = ', '.join([f"{k} = %s" for k in campos])
+    valores = list(campos.values()) + [id_producto]
+    with get_connection() as conn:
+        cur = conn.cursor()
+        cur.execute(f"UPDATE productos_web SET {sets} WHERE id = %s", valores)
+
+
+def eliminar_producto_web(id_producto):
+    with get_connection() as conn:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM productos_web WHERE id = %s", (id_producto,))
+
+
+def importar_catalogo_web_inicial(ruta='catalogo_seed.json'):
+    """Importa el catálogo inicial una sola vez si la tabla está vacía."""
+    with get_connection() as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) AS total FROM productos_web")
+        if int(cur.fetchone()['total'] or 0) > 0:
+            return 0
+    if not os.path.exists(ruta):
+        return 0
+    with open(ruta, 'r', encoding='utf-8') as f:
+        items = json.load(f)
+    creados = 0
+    for p in items:
+        crear_producto_web(
+            p.get('nombre','Producto'), p.get('categoria','Otros'), p.get('precio',0),
+            p.get('precio_consultar',False), p.get('descripcion',''),
+            json.dumps(p.get('especificaciones',[]), ensure_ascii=False),
+            p.get('imagen',''), p.get('visible',True), p.get('disponible',True),
+            p.get('destacado',False), p.get('domicilio_gratis',False), p.get('orden',0),
+        )
+        creados += 1
+    return creados
+
+
+def obtener_config_web():
+    claves = [
+        'web_whatsapp','web_direccion','web_ciudad','web_horario',
+        'web_promocion_titulo','web_promocion_texto','web_instagram','web_facebook','web_tiktok'
+    ]
+    with get_connection() as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT clave, valor FROM configuracion WHERE clave = ANY(%s)", (claves,))
+        data = {r['clave']: r['valor'] for r in cur.fetchall()}
+    return {k: data.get(k,'') for k in claves}
+
+
+def guardar_config_web(datos):
+    permitidas = {
+        'web_whatsapp','web_direccion','web_ciudad','web_horario',
+        'web_promocion_titulo','web_promocion_texto','web_instagram','web_facebook','web_tiktok'
+    }
+    with get_connection() as conn:
+        cur = conn.cursor()
+        for clave, valor in (datos or {}).items():
+            if clave in permitidas:
+                cur.execute("""
+                    INSERT INTO configuracion (clave, valor) VALUES (%s, %s)
+                    ON CONFLICT (clave) DO UPDATE SET valor = EXCLUDED.valor
+                """, (clave, str(valor or '').strip()))
 
 
 # ==================== VENTAS ====================
