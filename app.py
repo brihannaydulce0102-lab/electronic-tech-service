@@ -3,6 +3,7 @@
 
 import os
 import re
+import unicodedata
 import ast
 import csv
 import json
@@ -845,6 +846,78 @@ def eliminar_producto_web(id_producto):
     with get_connection() as conn:
         cur = conn.cursor()
         cur.execute("DELETE FROM productos_web WHERE id = %s", (id_producto,))
+
+
+def _normalizar_nombre_producto_web(nombre):
+    """Comparar nombres existentes sin afectar mayúsculas, tildes o espacios."""
+    nombre = unicodedata.normalize('NFKD', str(nombre or ''))
+    nombre = ''.join(ch for ch in nombre if not unicodedata.combining(ch))
+    return re.sub(r'\s+', ' ', nombre.casefold()).strip()
+
+
+def _leer_catalogo_web_recuperable(ruta='catalogo_seed.json'):
+    """El seed contiene los diez productos originales y fotos optimizadas."""
+    if not os.path.isfile(ruta):
+        raise FileNotFoundError(f"No se encuentra {ruta}. Súbelo junto con app.py.")
+    with open(ruta, 'r', encoding='utf-8') as f:
+        datos = json.load(f)
+    if not isinstance(datos, list):
+        raise ValueError('El archivo de recuperación debe ser una lista de productos.')
+    datos = [p for p in datos if isinstance(p, dict) and str(p.get('nombre', '')).strip()]
+    if not datos:
+        raise ValueError('El archivo no contiene productos válidos.')
+    return datos
+
+
+def obtener_faltantes_web_recuperados(ruta='catalogo_seed.json'):
+    """Solo compara; jamás altera datos de PostgreSQL."""
+    datos = _leer_catalogo_web_recuperable(ruta)
+    actuales = obtener_productos_web(incluir_ocultos=True)
+    conocidos = {_normalizar_nombre_producto_web(p['nombre']) for p in actuales}
+    faltantes = []
+    for p in datos:
+        clave = _normalizar_nombre_producto_web(p['nombre'])
+        if clave not in conocidos:
+            faltantes.append(p)
+            conocidos.add(clave)
+    return actuales, faltantes
+
+
+def recuperar_productos_web_faltantes(ruta='catalogo_seed.json'):
+    """Solo INSERT de nombres ausentes. Una única transacción; sin DELETE/UPDATE."""
+    datos = _leer_catalogo_web_recuperable(ruta)
+    insertados = 0
+    with get_connection() as conn:
+        cur = conn.cursor()
+        # Serializa posibles restauraciones simultáneas.
+        cur.execute("SELECT pg_advisory_xact_lock(hashtext('ets_catalogo_web_restaurar'))")
+        cur.execute('SELECT nombre FROM productos_web')
+        conocidos = {_normalizar_nombre_producto_web(p['nombre']) for p in cur.fetchall()}
+        for p in datos:
+            nombre = str(p.get('nombre', '')).strip()
+            clave = _normalizar_nombre_producto_web(nombre)
+            if not clave or clave in conocidos:
+                continue
+            especificaciones = p.get('especificaciones', [])
+            if not isinstance(especificaciones, list):
+                especificaciones = []
+            cur.execute("""
+                INSERT INTO productos_web
+                (nombre, categoria, precio, precio_consultar, descripcion,
+                 especificaciones, imagen, visible, disponible, destacado,
+                 domicilio_gratis, orden, fecha_actualizacion)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,CURRENT_TIMESTAMP)
+            """, (
+                nombre, p.get('categoria') or 'Otros', float(p.get('precio') or 0),
+                bool(p.get('precio_consultar', False)), p.get('descripcion') or '',
+                json.dumps(especificaciones, ensure_ascii=False), p.get('imagen') or '',
+                bool(p.get('visible', True)), bool(p.get('disponible', True)),
+                bool(p.get('destacado', False)), bool(p.get('domicilio_gratis', False)),
+                int(p.get('orden') or 0),
+            ))
+            conocidos.add(clave)
+            insertados += 1
+    return insertados
 
 
 def importar_catalogo_web_inicial(ruta='catalogo_seed.json'):
@@ -1881,7 +1954,7 @@ elif opcion == "🌐 Página web":
             st.warning(f"No se pudo importar el catálogo inicial: {e}")
             st.session_state._catalogo_web_seed = True
 
-    tab_productos, tab_nuevo, tab_info = st.tabs(["Productos web", "Nuevo producto", "Información general"])
+    tab_productos, tab_nuevo, tab_recuperar, tab_info = st.tabs(["Productos web", "Nuevo producto", "Recuperar anteriores", "Información general"])
 
     categorias = ["Tablets", "Celulares", "Computadores", "Carga", "Gaming", "Cámaras", "Audio", "Accesorios", "Otros"]
 
@@ -1982,6 +2055,42 @@ elif opcion == "🌐 Página web":
                     )
                     st.success(f"Producto #{pid} publicado en la web.")
                     st.rerun()
+
+    with tab_recuperar:
+        st.markdown('#### ♻️ Recuperar productos de la página anterior')
+        st.info('Se agregarán solamente los productos que no estén registrados. Los actuales, sus precios, fotos y la información de reparaciones, clientes y ventas se conservarán sin modificaciones.')
+        if st.session_state.get('recuperacion_web_mensaje'):
+            st.success(st.session_state.pop('recuperacion_web_mensaje'))
+        try:
+            actuales, faltantes = obtener_faltantes_web_recuperados()
+            st.write(f"**Productos actuales en la app:** {len(actuales)}")
+            st.write(f"**Productos antiguos pendientes de recuperar:** {len(faltantes)}")
+            if actuales:
+                # Respaldo previo de todas las filas, sin alterar la base de datos.
+                contenido_respaldo = json.dumps([dict(p) for p in actuales],
+                                                 ensure_ascii=False, indent=2, default=str)
+                st.download_button('⬇️ Descargar respaldo de productos actuales',
+                    data=contenido_respaldo.encode('utf-8'),
+                    file_name='respaldo_productos_web_antes_de_recuperar.json',
+                    mime='application/json', key='backup_productos_web_recuperacion')
+            if faltantes:
+                st.caption('Productos que se incorporarán con sus fotografías y características:')
+                for p in faltantes:
+                    st.write(f"• {p['nombre']}")
+                acepta = st.checkbox('Confirmo que deseo agregar los productos faltantes sin reemplazar los actuales.',
+                                     key='confirmar_restaurar_web')
+                if st.button('♻️ Recuperar productos faltantes',
+                             disabled=not acepta, type='primary', key='btn_recuperar_web'):
+                    n = recuperar_productos_web_faltantes()
+                    st.session_state['recuperacion_web_mensaje'] = (
+                        f'¡Listo! Se recuperaron {n} productos. Ya puedes editarlos en Productos web. '
+                        'La página los muestra al consultar nuevamente la base de datos.'
+                    )
+                    st.rerun()
+            else:
+                st.success('Todos los productos del catálogo anterior ya están en la aplicación. No hace falta importar nada.')
+        except Exception as exc:
+            st.error(f'No se pudo preparar la recuperación: {exc}')
 
     with tab_info:
         cfg = obtener_config_web()
