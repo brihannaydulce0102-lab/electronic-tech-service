@@ -211,6 +211,46 @@ def crear_tablas():
             )
         """)
 
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS productos_web (
+                id SERIAL PRIMARY KEY,
+                nombre TEXT NOT NULL,
+                categoria TEXT NOT NULL DEFAULT 'Otros',
+                precio REAL NOT NULL DEFAULT 0,
+                precio_consultar BOOLEAN NOT NULL DEFAULT FALSE,
+                descripcion TEXT DEFAULT '',
+                especificaciones TEXT DEFAULT '[]',
+                imagen TEXT DEFAULT '',
+                visible BOOLEAN NOT NULL DEFAULT TRUE,
+                disponible BOOLEAN NOT NULL DEFAULT TRUE,
+                destacado BOOLEAN NOT NULL DEFAULT FALSE,
+                domicilio_gratis BOOLEAN NOT NULL DEFAULT FALSE,
+                orden INTEGER NOT NULL DEFAULT 0,
+                fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_productos_web_visible ON productos_web(visible)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_productos_web_orden ON productos_web(orden, id)")
+
+        defaults_web = {
+            'web_whatsapp': '573014874740',
+            'web_direccion': 'Barrio El Mundo López, Diagonal 17 con Transversal 28',
+            'web_ciudad': 'Montería, Córdoba',
+            'web_horario': 'Lunes a sábado · horario comercial',
+            'web_promocion_titulo': 'Servicio a domicilio gratis',
+            'web_promocion_texto': 'Consulta disponibilidad y cobertura directamente por WhatsApp.',
+            'web_instagram': '',
+            'web_facebook': '',
+            'web_tiktok': '',
+        }
+        for clave_web, valor_web in defaults_web.items():
+            cur.execute(
+                "INSERT INTO configuracion (clave, valor) VALUES (%s, %s) ON CONFLICT (clave) DO NOTHING",
+                (clave_web, valor_web),
+            )
+
         cur.execute("""
             CREATE TABLE IF NOT EXISTS gastos (
                 id SERIAL PRIMARY KEY,
@@ -745,6 +785,119 @@ def obtener_productos_eliminados():
         return cur.fetchall()
 
 
+
+
+# ==================== PÁGINA WEB ====================
+
+def obtener_productos_web(incluir_ocultos=True):
+    with get_connection() as conn:
+        cur = conn.cursor()
+        if incluir_ocultos:
+            cur.execute("SELECT * FROM productos_web ORDER BY orden, id")
+        else:
+            cur.execute("SELECT * FROM productos_web WHERE visible = TRUE ORDER BY destacado DESC, orden, id")
+        return cur.fetchall()
+
+
+def obtener_producto_web(id_producto):
+    with get_connection() as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM productos_web WHERE id = %s", (id_producto,))
+        return cur.fetchone()
+
+
+def crear_producto_web(nombre, categoria='Otros', precio=0, precio_consultar=False,
+                       descripcion='', especificaciones='[]', imagen='', visible=True,
+                       disponible=True, destacado=False, domicilio_gratis=False, orden=0):
+    with get_connection() as conn:
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO productos_web
+            (nombre, categoria, precio, precio_consultar, descripcion, especificaciones,
+             imagen, visible, disponible, destacado, domicilio_gratis, orden, fecha_actualizacion)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,CURRENT_TIMESTAMP)
+            RETURNING id
+        """, (
+            nombre.strip(), categoria or 'Otros', float(precio or 0), bool(precio_consultar),
+            descripcion or '', especificaciones or '[]', imagen or '', bool(visible),
+            bool(disponible), bool(destacado), bool(domicilio_gratis), int(orden or 0),
+        ))
+        return cur.fetchone()['id']
+
+
+def actualizar_producto_web(id_producto, **campos):
+    permitidos = {
+        'nombre','categoria','precio','precio_consultar','descripcion','especificaciones',
+        'imagen','visible','disponible','destacado','domicilio_gratis','orden'
+    }
+    campos = {k:v for k,v in campos.items() if k in permitidos}
+    if not campos:
+        return
+    campos['fecha_actualizacion'] = datetime.now()
+    sets = ', '.join([f"{k} = %s" for k in campos])
+    valores = list(campos.values()) + [id_producto]
+    with get_connection() as conn:
+        cur = conn.cursor()
+        cur.execute(f"UPDATE productos_web SET {sets} WHERE id = %s", valores)
+
+
+def eliminar_producto_web(id_producto):
+    with get_connection() as conn:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM productos_web WHERE id = %s", (id_producto,))
+
+
+def importar_catalogo_web_inicial(ruta='catalogo_seed.json'):
+    """Importa el catálogo inicial una sola vez si la tabla está vacía."""
+    with get_connection() as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) AS total FROM productos_web")
+        if int(cur.fetchone()['total'] or 0) > 0:
+            return 0
+    if not os.path.exists(ruta):
+        return 0
+    with open(ruta, 'r', encoding='utf-8') as f:
+        items = json.load(f)
+    creados = 0
+    for p in items:
+        crear_producto_web(
+            p.get('nombre','Producto'), p.get('categoria','Otros'), p.get('precio',0),
+            p.get('precio_consultar',False), p.get('descripcion',''),
+            json.dumps(p.get('especificaciones',[]), ensure_ascii=False),
+            p.get('imagen',''), p.get('visible',True), p.get('disponible',True),
+            p.get('destacado',False), p.get('domicilio_gratis',False), p.get('orden',0),
+        )
+        creados += 1
+    return creados
+
+
+def obtener_config_web():
+    claves = [
+        'web_whatsapp','web_direccion','web_ciudad','web_horario',
+        'web_promocion_titulo','web_promocion_texto','web_instagram','web_facebook','web_tiktok'
+    ]
+    with get_connection() as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT clave, valor FROM configuracion WHERE clave = ANY(%s)", (claves,))
+        data = {r['clave']: r['valor'] for r in cur.fetchall()}
+    return {k: data.get(k,'') for k in claves}
+
+
+def guardar_config_web(datos):
+    permitidas = {
+        'web_whatsapp','web_direccion','web_ciudad','web_horario',
+        'web_promocion_titulo','web_promocion_texto','web_instagram','web_facebook','web_tiktok'
+    }
+    with get_connection() as conn:
+        cur = conn.cursor()
+        for clave, valor in (datos or {}).items():
+            if clave in permitidas:
+                cur.execute("""
+                    INSERT INTO configuracion (clave, valor) VALUES (%s, %s)
+                    ON CONFLICT (clave) DO UPDATE SET valor = EXCLUDED.valor
+                """, (clave, str(valor or '').strip()))
+
+
 # ==================== VENTAS ====================
 
 def crear_venta(producto_id, cantidad, cliente="", vendedor="", notas=""):
@@ -1118,6 +1271,31 @@ def mostrar_base64(texto):
     return base64.b64decode(texto)
 
 
+
+
+def imagen_producto_web(upload):
+    """Comprime una foto para el catálogo web y la devuelve como data URI."""
+    if not upload:
+        return ''
+    if not HAS_PIL:
+        raise RuntimeError("Falta Pillow para procesar imágenes.")
+    imagen = Image.open(upload).convert('RGB')
+    imagen.thumbnail((720, 720))
+    buffer = BytesIO()
+    imagen.save(buffer, format='JPEG', quality=70, optimize=True)
+    return 'data:image/jpeg;base64,' + base64.b64encode(buffer.getvalue()).decode('ascii')
+
+
+def mostrar_imagen_web(data_uri, width=None):
+    if not data_uri:
+        return
+    try:
+        contenido = data_uri.split(',', 1)[1] if ',' in data_uri else data_uri
+        st.image(base64.b64decode(contenido), width=width)
+    except Exception:
+        pass
+
+
 def normalizar_whatsapp(telefono):
     numeros = re.sub(r"\D", "", str(telefono or ""))
     if not numeros:
@@ -1246,7 +1424,7 @@ if st.session_state.rol == "admin":
     st.sidebar.markdown("---")
     st.sidebar.markdown("### Administración")
     for item in [
-        "📦 Inventario", "📊 Contabilidad", "💸 Gastos", "📅 Corte Mensual",
+        "📦 Inventario", "🌐 Página web", "📊 Contabilidad", "💸 Gastos", "📅 Corte Mensual",
         "🗑️ Papelera", "👥 Usuarios", "🛡️ Sistema"
     ]:
         boton_menu(item)
@@ -1265,7 +1443,7 @@ opcion = st.session_state.opcion
 # Protección de permisos: aunque quede una opción antigua en session_state,
 # un trabajador nunca puede abrir pantallas exclusivas de administrador.
 OPCIONES_ADMIN = {
-    "📦 Inventario", "📊 Contabilidad", "💸 Gastos", "📅 Corte Mensual",
+    "📦 Inventario", "🌐 Página web", "📊 Contabilidad", "💸 Gastos", "📅 Corte Mensual",
     "🗑️ Papelera", "👥 Usuarios", "🛡️ Sistema"
 }
 if opcion in OPCIONES_ADMIN and st.session_state.rol != "admin":
@@ -1682,6 +1860,161 @@ elif opcion == "📦 Inventario":
                 st.rerun()
             else:
                 st.error("El nombre es obligatorio.")
+
+
+# ==========================================================
+# PÁGINA WEB / CATÁLOGO PÚBLICO
+# ==========================================================
+
+elif opcion == "🌐 Página web":
+    st.subheader("🌐 Administrar página web")
+    st.caption("Los cambios guardados aquí se reflejan en el sitio público automáticamente. Puede tardar hasta 1 minuto por caché.")
+
+    # Primera importación automática del catálogo actual si aún no existe en PostgreSQL.
+    if "_catalogo_web_seed" not in st.session_state:
+        try:
+            importados = importar_catalogo_web_inicial()
+            st.session_state._catalogo_web_seed = True
+            if importados:
+                st.success(f"Se importaron {importados} productos del catálogo actual para que puedas editarlos.")
+        except Exception as e:
+            st.warning(f"No se pudo importar el catálogo inicial: {e}")
+            st.session_state._catalogo_web_seed = True
+
+    tab_productos, tab_nuevo, tab_info = st.tabs(["Productos web", "Nuevo producto", "Información general"])
+
+    categorias = ["Tablets", "Celulares", "Computadores", "Carga", "Gaming", "Cámaras", "Audio", "Accesorios", "Otros"]
+
+    with tab_productos:
+        productos_web = obtener_productos_web(incluir_ocultos=True)
+        if not productos_web:
+            st.info("Todavía no hay productos en el catálogo web. Usa la pestaña 'Nuevo producto'.")
+        else:
+            for p in productos_web:
+                estado_web = "🟢 Visible" if p["visible"] else "⚫ Oculto"
+                stock_web = "Disponible" if p["disponible"] else "Agotado"
+                with st.expander(f"{estado_web} · {p['nombre']} · {stock_web}"):
+                    if p.get("imagen"):
+                        mostrar_imagen_web(p["imagen"], width=220)
+                    with st.form(key=f"web_edit_{p['id']}"):
+                        nombre = st.text_input("Nombre", value=p["nombre"] or "")
+                        cat_actual = p["categoria"] if p["categoria"] in categorias else "Otros"
+                        categoria = st.selectbox("Categoría", categorias, index=categorias.index(cat_actual))
+                        c1, c2 = st.columns(2)
+                        precio = c1.number_input("Precio", min_value=0.0, value=float(p["precio"] or 0), step=1000.0)
+                        precio_consultar = c2.checkbox("Mostrar 'Consultar precio'", value=bool(p["precio_consultar"]))
+                        descripcion = st.text_area("Descripción", value=p["descripcion"] or "", height=80)
+                        try:
+                            specs_actuales = json.loads(p["especificaciones"] or "[]")
+                            if not isinstance(specs_actuales, list): specs_actuales = []
+                        except Exception:
+                            specs_actuales = []
+                        specs_texto = st.text_area(
+                            "Características (una por línea)",
+                            value="\n".join(str(x) for x in specs_actuales),
+                            height=130,
+                        )
+                        nueva_foto = st.file_uploader("Cambiar foto (opcional)", type=["jpg","jpeg","png","webp"], key=f"img_web_{p['id']}")
+                        c3, c4, c5 = st.columns(3)
+                        visible = c3.checkbox("Visible en la web", value=bool(p["visible"]))
+                        disponible = c4.checkbox("Disponible", value=bool(p["disponible"]))
+                        destacado = c5.checkbox("Destacado", value=bool(p["destacado"]))
+                        c6, c7 = st.columns(2)
+                        domicilio = c6.checkbox("Domicilio gratis", value=bool(p["domicilio_gratis"]))
+                        orden = c7.number_input("Orden de aparición", min_value=0, value=int(p["orden"] or 0), step=10)
+                        confirmar_borrar = st.checkbox("Confirmo eliminar definitivamente este producto del catálogo web")
+                        b1, b2 = st.columns(2)
+                        guardar = b1.form_submit_button("💾 Guardar cambios", use_container_width=True)
+                        borrar = b2.form_submit_button("🗑️ Eliminar de la web", use_container_width=True)
+
+                        if guardar:
+                            imagen = p["imagen"] or ""
+                            if nueva_foto is not None:
+                                imagen = imagen_producto_web(nueva_foto)
+                            specs = [s.strip() for s in specs_texto.splitlines() if s.strip()]
+                            actualizar_producto_web(
+                                p["id"], nombre=nombre, categoria=categoria, precio=precio,
+                                precio_consultar=precio_consultar, descripcion=descripcion,
+                                especificaciones=json.dumps(specs, ensure_ascii=False), imagen=imagen,
+                                visible=visible, disponible=disponible, destacado=destacado,
+                                domicilio_gratis=domicilio, orden=orden,
+                            )
+                            st.success("Producto actualizado en la página web.")
+                            st.rerun()
+
+                        if borrar:
+                            if confirmar_borrar:
+                                eliminar_producto_web(p["id"])
+                                st.success("Producto eliminado del catálogo web.")
+                                st.rerun()
+                            else:
+                                st.error("Marca la casilla de confirmación antes de eliminar.")
+
+    with tab_nuevo:
+        with st.form("nuevo_producto_web", clear_on_submit=True):
+            nombre = st.text_input("Nombre del producto")
+            categoria = st.selectbox("Categoría", categorias)
+            c1, c2 = st.columns(2)
+            precio = c1.number_input("Precio", min_value=0.0, value=0.0, step=1000.0)
+            precio_consultar = c2.checkbox("Mostrar 'Consultar precio'")
+            descripcion = st.text_area("Descripción", height=80)
+            specs_texto = st.text_area("Características (una por línea)", height=130)
+            foto = st.file_uploader("Foto del producto", type=["jpg","jpeg","png","webp"])
+            c3, c4, c5 = st.columns(3)
+            visible = c3.checkbox("Visible", value=True)
+            disponible = c4.checkbox("Disponible", value=True)
+            destacado = c5.checkbox("Destacado")
+            c6, c7 = st.columns(2)
+            domicilio = c6.checkbox("Domicilio gratis")
+            orden = c7.number_input("Orden", min_value=0, value=100, step=10)
+            crear = st.form_submit_button("➕ Publicar producto", type="primary", use_container_width=True)
+
+            if crear:
+                if not nombre.strip():
+                    st.error("El nombre del producto es obligatorio.")
+                else:
+                    imagen = imagen_producto_web(foto) if foto else ""
+                    specs = [s.strip() for s in specs_texto.splitlines() if s.strip()]
+                    pid = crear_producto_web(
+                        nombre, categoria, precio, precio_consultar, descripcion,
+                        json.dumps(specs, ensure_ascii=False), imagen, visible,
+                        disponible, destacado, domicilio, orden,
+                    )
+                    st.success(f"Producto #{pid} publicado en la web.")
+                    st.rerun()
+
+    with tab_info:
+        cfg = obtener_config_web()
+        with st.form("config_web"):
+            st.markdown("#### Contacto y ubicación")
+            whatsapp = st.text_input("WhatsApp (con indicativo, solo números)", value=cfg.get("web_whatsapp", "573014874740"))
+            direccion = st.text_input("Dirección", value=cfg.get("web_direccion", ""))
+            ciudad = st.text_input("Ciudad", value=cfg.get("web_ciudad", ""))
+            horario = st.text_input("Horario", value=cfg.get("web_horario", ""))
+            st.markdown("#### Promoción principal")
+            promo_titulo = st.text_input("Título de promoción", value=cfg.get("web_promocion_titulo", ""))
+            promo_texto = st.text_area("Texto de promoción", value=cfg.get("web_promocion_texto", ""), height=80)
+            st.markdown("#### Redes sociales")
+            instagram = st.text_input("Instagram (URL o usuario)", value=cfg.get("web_instagram", ""))
+            facebook = st.text_input("Facebook (URL)", value=cfg.get("web_facebook", ""))
+            tiktok = st.text_input("TikTok (URL o usuario)", value=cfg.get("web_tiktok", ""))
+            guardar_cfg = st.form_submit_button("💾 Guardar información de la página", type="primary", use_container_width=True)
+            if guardar_cfg:
+                numeros = re.sub(r"\D", "", whatsapp)
+                guardar_config_web({
+                    "web_whatsapp": numeros,
+                    "web_direccion": direccion,
+                    "web_ciudad": ciudad,
+                    "web_horario": horario,
+                    "web_promocion_titulo": promo_titulo,
+                    "web_promocion_texto": promo_texto,
+                    "web_instagram": instagram,
+                    "web_facebook": facebook,
+                    "web_tiktok": tiktok,
+                })
+                st.success("Información general actualizada.")
+                st.rerun()
+
 
 # ==========================================================
 # VENTAS
